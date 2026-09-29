@@ -37,8 +37,13 @@
 	},
 	// Mantém o endereço antigo (workers.dev) funcionando junto com o domínio próprio.
 	"workers_dev": true,
-	// Domínio próprio. Só é adicionado de fato na Etapa 4 (corte coordenado com a Garatucaia);
-	// até lá o deploy de teste roda só no endereço *.workers.dev.
+	// Domínio próprio (Etapa 4: corte coordenado com a Garatucaia).
+	"routes": [
+		{
+			"pattern": "pontox.sistemaultrion.com.br",
+			"custom_domain": true
+		}
+	],
 
 	"vars": {
 		// Endereço oficial: links dos pedidos no WhatsApp.
