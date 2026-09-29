@@ -1,0 +1,75 @@
+{
+	"name": "ponto-x-delivery",
+	"main": "worker.js",
+	"compatibility_date": "2026-09-22",
+	"assets": {
+		"directory": ".",
+		"binding": "ASSETS",
+		"run_worker_first": [
+			"/api/*",
+			"/",
+			"/index.html",
+			"/admin",
+			"/admin.html",
+			"/manifest.webmanifest",
+			"/admin.webmanifest"
+		]
+	},
+	// Muda a cada "wrangler deploy": o site e o painel usam para se atualizar sozinhos.
+	// Logs do Worker no painel da Cloudflare (diagnóstico do pedido por voz).
+	"observability": {
+		"enabled": true
+	},
+	// Workers AI: transcrição do pedido por voz no iPhone (Whisper).
+	"ai": {
+		"binding": "AI"
+	},
+	"version_metadata": {
+		"binding": "CF_VERSION_METADATA"
+	},
+	// A cada 5 min: alerta agrupado no celular do dono (pedidos fora do prazo / esperando aceite).
+	// 02:50 UTC (23:50 em São Paulo): resumo do dia no celular do dono.
+	"triggers": {
+		"crons": [
+			"*/5 * * * *",
+			"30 1 * * *"
+		]
+	},
+	// Mantém o endereço antigo (workers.dev) funcionando junto com o domínio próprio.
+	"workers_dev": true,
+	// Domínio próprio. Só é adicionado de fato na Etapa 4 (corte coordenado com a Garatucaia);
+	// até lá o deploy de teste roda só no endereço *.workers.dev.
+	"routes": [
+		{
+			"pattern": "pontox.sistemaultrion.com.br",
+			"custom_domain": true
+		}
+	],
+	"vars": {
+		// Endereço oficial: links dos pedidos no WhatsApp.
+		"SITE_URL": "https://pontox.sistemaultrion.com.br",
+		"SUPABASE_URL": "https://SUBSTITUIR.supabase.co"
+		// Sem VAPID_PUBLIC_KEY de propósito: chave própria da Ponto X, gerada na Etapa 3.
+		// Sem WA_SERVICE_URL de propósito: sem WhatsApp automático por enquanto (só link manual wa.me).
+	},
+	"secrets": {
+		"required": [
+			"SUPABASE_SECRET_KEY",
+			"SESSION_SECRET",
+			"ADMIN_PASSWORD"
+		]
+	},
+	// Previews (npx wrangler preview) NÃO herdam nada do topo: bindings e vars precisam estar aqui.
+	"previews": {
+		"ai": {
+			"binding": "AI"
+		},
+		"version_metadata": {
+			"binding": "CF_VERSION_METADATA"
+		},
+		"vars": {
+			// Sem SITE_URL de propósito: a prévia não manda WhatsApp para cliente de verdade.
+			"SUPABASE_URL": "https://SUBSTITUIR-TESTE.supabase.co"
+		}
+	}
+}

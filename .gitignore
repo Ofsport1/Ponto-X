@@ -1,0 +1,8 @@
+.wrangler/
+node_modules/
+.dev.vars
+.vapid.json
+.vapid-public.txt
+whatsapp-service/node_modules/
+whatsapp-service/.env
+tmp/

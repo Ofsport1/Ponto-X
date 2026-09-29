@@ -1,0 +1,150 @@
+[
+  {
+    "id": "bace06ce-a7f0-4813-b9cb-f582748f8205",
+    "name": "Guaravita",
+    "sourceName": "Guaravita 290 ml",
+    "source": "https://njejnymkszyvvipfaxth.supabase.co/storage/v1/object/public/product-photos/std/bd0d4ef2-ffb2-4865-85c4-ba434d460bdb_1790132706954-1790276593855.webp",
+    "old": "/assets/lojas/pontox/guaravita.webp",
+    "price_cents": 250,
+    "path": "/assets/produtos/bace06ce-a7f0-4813-b9cb-f582748f8205.webp"
+  },
+  {
+    "id": "c83dfd8b-37ea-4f18-9255-01fc3144c511",
+    "name": "Coca cola lata 350ml",
+    "sourceName": "Coca-Cola Lata 350 ml",
+    "source": "https://njejnymkszyvvipfaxth.supabase.co/storage/v1/object/public/product-photos/std/ca243b8f-a410-4c02-bf57-b12c6ad14e88_1790132705494-1790276593855.webp",
+    "old": "/assets/lojas/pontox/coca-cola-lata-350ml.webp",
+    "price_cents": 700,
+    "path": "/assets/produtos/c83dfd8b-37ea-4f18-9255-01fc3144c511.webp"
+  },
+  {
+    "id": "1fd0b247-f43e-4ea8-8b7b-5ef7802f5fd6",
+    "name": "Coca cola 2 litros",
+    "sourceName": "Coca-Cola 2 L",
+    "source": "https://njejnymkszyvvipfaxth.supabase.co/storage/v1/object/public/product-photos/std/737ef44f-5f9d-4107-973f-57ab30752b2e_1790132704288-1790276593855.webp",
+    "old": "/assets/lojas/pontox/coca-cola-2-litros.webp",
+    "price_cents": 1500,
+    "path": "/assets/produtos/1fd0b247-f43e-4ea8-8b7b-5ef7802f5fd6.webp"
+  },
+  {
+    "id": "284bdf8e-7c4c-4317-9ecd-86dc971b9c08",
+    "name": "Coca cola 2 litros Zero",
+    "sourceName": "Coca-Cola Zero 2 L",
+    "source": "https://njejnymkszyvvipfaxth.supabase.co/storage/v1/object/public/product-photos/std/970fe9f3-fca9-47c8-af7b-f78590e4e2a8_1790132704392-1790276593855.webp",
+    "old": "/assets/lojas/pontox/coca-cola-2-litros-zero.webp",
+    "price_cents": 1500,
+    "path": "/assets/produtos/284bdf8e-7c4c-4317-9ecd-86dc971b9c08.webp"
+  },
+  {
+    "id": "3352e063-5049-4d62-8482-a3907925bbe7",
+    "name": "Antárctica 473ml",
+    "sourceName": "Latão Antarctica 473 ml",
+    "source": "https://njejnymkszyvvipfaxth.supabase.co/storage/v1/object/public/product-photos/std/10820271-e0e7-42f7-89bb-253e64687d52_1790132699761-1790276593855.webp",
+    "old": "/assets/lojas/pontox/antarctica-473ml.webp",
+    "price_cents": 700,
+    "path": "/assets/produtos/3352e063-5049-4d62-8482-a3907925bbe7.webp"
+  },
+  {
+    "id": "e19585c9-d800-4e8e-9733-01df7615cc46",
+    "name": "Brahma 473ml",
+    "sourceName": "Latão Brahma 473 ml",
+    "source": "https://njejnymkszyvvipfaxth.supabase.co/storage/v1/object/public/product-photos/std/e423810f-d313-4300-b167-b14d388b77d7_1790132699793-1790276593855.webp",
+    "old": "/assets/lojas/pontox/brahma-473ml.webp",
+    "price_cents": 700,
+    "path": "/assets/produtos/e19585c9-d800-4e8e-9733-01df7615cc46.webp"
+  },
+  {
+    "id": "10b5840c-debf-4ccb-83ca-24aef086814c",
+    "name": "Heineken Latão 473ML",
+    "sourceName": "Latão Heineken 473 ml",
+    "source": "https://njejnymkszyvvipfaxth.supabase.co/storage/v1/object/public/product-photos/std/888395cd-8342-46fe-b95b-42bbf274beb5_1790132700200-1790276593855.webp",
+    "old": "/assets/lojas/pontox/heineken-latao-473ml.webp",
+    "price_cents": 1000,
+    "path": "/assets/produtos/10b5840c-debf-4ccb-83ca-24aef086814c.webp"
+  },
+  {
+    "id": "e78e5560-b7b6-4f0e-907a-d7192bab4c86",
+    "name": "Heineken long neck 330ml",
+    "sourceName": "Heineken Long Neck 330 ml",
+    "source": "https://njejnymkszyvvipfaxth.supabase.co/storage/v1/object/public/product-photos/std/4a10005f-1534-4fae-9b65-7d07dc3314cb_1790132703697-1790276593855.webp",
+    "old": "/assets/lojas/pontox/heineken-long-neck-330ml.webp",
+    "price_cents": 1000,
+    "path": "/assets/produtos/e78e5560-b7b6-4f0e-907a-d7192bab4c86.webp"
+  },
+  {
+    "id": "b08f6852-3592-4eac-a2a4-4bfbc8cf21b1",
+    "name": "Imperio 473ml",
+    "sourceName": "Latão Império 473 ml",
+    "source": "https://njejnymkszyvvipfaxth.supabase.co/storage/v1/object/public/product-photos/std/84a3400a-063b-4981-a37e-3a91ead01c6f_1790132700481-1790276593855.webp",
+    "old": "/assets/lojas/pontox/imperio-473ml.webp",
+    "price_cents": 700,
+    "path": "/assets/produtos/b08f6852-3592-4eac-a2a4-4bfbc8cf21b1.webp"
+  },
+  {
+    "id": "59e4144e-f23b-4011-af69-46085d140e7a",
+    "name": "Itaipava 473ml",
+    "sourceName": "Latão Itaipava 473 ml",
+    "source": "https://njejnymkszyvvipfaxth.supabase.co/storage/v1/object/public/product-photos/std/a1137111-39ae-4398-b8cf-f472f0c84c12_1790132700907-1790276593855.webp",
+    "old": "/assets/lojas/pontox/itaipava-473ml.webp",
+    "price_cents": 600,
+    "path": "/assets/produtos/59e4144e-f23b-4011-af69-46085d140e7a.webp"
+  },
+  {
+    "id": "2ce90b5e-2d05-4914-b501-cb89132cf9dd",
+    "name": "Corona long neck 330ml",
+    "sourceName": "Corona Long Neck 330 ml",
+    "source": "https://njejnymkszyvvipfaxth.supabase.co/storage/v1/object/public/product-photos/std/11ac9b90-6151-4918-9ac0-e05c1244c532_1790132702918-1790276593855.webp",
+    "old": "/assets/lojas/pontox/corona-long-neck-330ml.webp",
+    "price_cents": 1000,
+    "path": "/assets/produtos/2ce90b5e-2d05-4914-b501-cb89132cf9dd.webp"
+  },
+  {
+    "id": "0e6f7ab2-b3f5-43f7-8b3f-a0e324d756a5",
+    "name": "Stella Long neck 330ml",
+    "sourceName": "Stella Artois Long Neck 330 ml",
+    "source": "https://njejnymkszyvvipfaxth.supabase.co/storage/v1/object/public/product-photos/std/a4524301-1cce-4bc8-aa60-d2ae8eeee319_1790132704018-1790276593855.webp",
+    "old": "/assets/lojas/pontox/stella-long-neck-330ml.webp",
+    "price_cents": 1000,
+    "path": "/assets/produtos/0e6f7ab2-b3f5-43f7-8b3f-a0e324d756a5.webp"
+  },
+  {
+    "id": "a1d899a8-6848-416a-9ab3-21c27294d069",
+    "name": "guarana antactica lata 350ml",
+    "sourceName": "Guaraná Antarctica",
+    "source": "https://njejnymkszyvvipfaxth.supabase.co/storage/v1/object/public/product-photos/std/0d70cf4c-9827-465b-bacd-16f99d6aa8d4_1790132705347-1790276593855.webp",
+    "old": null,
+    "price_cents": 700,
+    "path": "/assets/produtos/a1d899a8-6848-416a-9ab3-21c27294d069.webp",
+    "sourceId": "0d70cf4c-9827-465b-bacd-16f99d6aa8d4"
+  },
+  {
+    "id": "04a448e1-de74-4798-b3fd-06df86167b6f",
+    "name": "Guarana convenção 2 Litros",
+    "sourceName": "Guaraná Convenção 2 L",
+    "source": "https://njejnymkszyvvipfaxth.supabase.co/storage/v1/object/public/product-photos/std/convencao_0-1790276593855.webp",
+    "old": "/assets/lojas/pontox/guarana-convencao-2-litros.webp",
+    "price_cents": 1000,
+    "path": "/assets/produtos/04a448e1-de74-4798-b3fd-06df86167b6f.webp",
+    "sourceId": "1dec2347-b795-47d4-8e25-fec5f121a80c"
+  },
+  {
+    "id": "d9414f5d-4e12-43ff-a4b6-6d59534282db",
+    "name": "Sukita laranja 2 litros",
+    "sourceName": "Sukita 2 L",
+    "source": "https://njejnymkszyvvipfaxth.supabase.co/storage/v1/object/public/product-photos/std/9b7a7464-ed19-4c50-9dce-8d3ea4091845_1790132705056-1790276593855.webp",
+    "old": "/assets/lojas/pontox/sukita-laranja-2-litros.webp",
+    "price_cents": 1000,
+    "path": "/assets/produtos/d9414f5d-4e12-43ff-a4b6-6d59534282db.webp",
+    "sourceId": "9b7a7464-ed19-4c50-9dce-8d3ea4091845"
+  },
+  {
+    "id": "778dc2f7-9e65-4e75-bc53-6ea2519ef6cf",
+    "name": "Del valle Maracujá lata",
+    "sourceName": "Del Valle",
+    "source": "https://njejnymkszyvvipfaxth.supabase.co/storage/v1/object/public/product-photos/std/bcc7d939-0dac-40ac-a681-eef1edc35473_1790132707916-1790276593855.webp",
+    "old": "/assets/lojas/pontox/del-valle-maracuja-lata.webp",
+    "price_cents": 700,
+    "path": "/assets/produtos/778dc2f7-9e65-4e75-bc53-6ea2519ef6cf.webp",
+    "sourceId": "bcc7d939-0dac-40ac-a681-eef1edc35473"
+  }
+]
