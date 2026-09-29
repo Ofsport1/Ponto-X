@@ -39,16 +39,11 @@
 	"workers_dev": true,
 	// Domínio próprio. Só é adicionado de fato na Etapa 4 (corte coordenado com a Garatucaia);
 	// até lá o deploy de teste roda só no endereço *.workers.dev.
-	"routes": [
-		{
-			"pattern": "pontox.sistemaultrion.com.br",
-			"custom_domain": true
-		}
-	],
+
 	"vars": {
 		// Endereço oficial: links dos pedidos no WhatsApp.
 		"SITE_URL": "https://pontox.sistemaultrion.com.br",
-		"SUPABASE_URL": "https://SUBSTITUIR.supabase.co"
+		"SUPABASE_URL": "https://qknjjsdblasejgpbowjs.supabase.co"
 		// Sem VAPID_PUBLIC_KEY de propósito: chave própria da Ponto X, gerada na Etapa 3.
 		// Sem WA_SERVICE_URL de propósito: sem WhatsApp automático por enquanto (só link manual wa.me).
 	},
