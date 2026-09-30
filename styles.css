@@ -527,6 +527,17 @@ code { background: var(--card-2); padding: 1px 5px; border-radius: 5px; font-siz
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  /* Mesma "caixa" de destaque dourado do especial da casa no vídeo (sem o brilho
+     pulsante — com um card por seção isso chama atenção; em vários cards na tela ao
+     mesmo tempo seria só ruído visual), pra facilitar achar preço/Adicionar na foto. */
+  margin-top: 6px;
+  padding: 6px 8px 6px 10px;
+  border-radius: 999px;
+  background: rgba(0,0,0,.5);
+  border: 1px solid rgba(244,189,66,.4);
+  box-shadow: 0 0 0 1px rgba(244,189,66,.12), 0 4px 14px rgba(0,0,0,.4);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 :root[data-store="pontox"] #menu-body .menu-section-scroll .product .btn {
   width: auto;
