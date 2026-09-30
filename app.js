@@ -368,12 +368,26 @@ function pontoxScrollVideoHeroHtml() {
   if (!isBurgerStore() || state.search.trim()) return '';
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return ''; // sem efeito de movimento
 
+  // O hambúrguer que aparece sendo montado no vídeo é o "Ponto X", o especial da casa —
+  // deixa ele pedível ali mesmo, com destaque, sem precisar rolar até o cardápio.
+  const special = state.products.find(p => p.available !== false && p.name.trim().toLowerCase() === 'ponto x');
+  const specialAction = !special ? '' : (special.variants.length
+    ? `<button class="btn primary pontox-scroll-hero-add" data-choose="${special.id}">Adicionar</button>`
+    : `<button class="btn primary pontox-scroll-hero-add" data-inc="${cartKey(special.id)}">Adicionar</button>`);
+
   return `<section class="pontox-scroll-hero" aria-label="Como montamos seu hambúrguer">
     <div class="pontox-scroll-hero-sticky">
       <video class="pontox-scroll-video" data-src="assets/burger-assembly.mp4" muted playsinline preload="none"></video>
       <div class="pontox-scroll-hero-copy">
         <span class="eyebrow">Direto da chapa</span>
         <h2>Seu hambúrguer, montado na hora</h2>
+        ${special ? `<div class="pontox-scroll-hero-product">
+          <span class="pontox-scroll-hero-badge">★ Especial da casa</span>
+          <div class="pontox-scroll-hero-product-row">
+            <div><strong>${escapeHtml(special.name)}</strong><span class="pontox-scroll-hero-price">${productPriceHtml(special)}</span></div>
+            ${specialAction}
+          </div>
+        </div>` : ''}
         <button type="button" class="btn small" data-skip-hero>Ver cardápio ↓</button>
       </div>
     </div>

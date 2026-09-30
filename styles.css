@@ -427,6 +427,18 @@ code { background: var(--card-2); padding: 1px 5px; border-radius: 5px; font-siz
 :root[data-store="pontox"] .pontox-scroll-hero-sticky::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.35) 100%); }
 :root[data-store="pontox"] .pontox-scroll-hero-copy { position: relative; z-index: 1; width: 100%; padding: 20px; background: linear-gradient(to top, rgba(0,0,0,.8), transparent); }
 :root[data-store="pontox"] .pontox-scroll-hero-copy h2 { margin: 4px 0 12px; color: var(--px-cream); font-size: clamp(22px, 5vw, 34px); }
+/* Caixa do "Ponto X" (o hambúrguer do vídeo) dentro do hero: selo dourado + brilho pulsante
+   sutil pra destacar sem competir com o vídeo/título. */
+:root[data-store="pontox"] .pontox-scroll-hero-product { margin: 0 0 14px; padding: 12px 14px; border-radius: 16px; background: rgba(0,0,0,.4); border: 1px solid rgba(244,189,66,.45); animation: pontoxHeroGlow 2.6s ease-in-out infinite; }
+:root[data-store="pontox"] .pontox-scroll-hero-badge { display: inline-block; margin-bottom: 8px; padding: 3px 10px; border-radius: 999px; background: var(--px-gold); color: #1a1005; font-size: 11px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; }
+:root[data-store="pontox"] .pontox-scroll-hero-product-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+:root[data-store="pontox"] .pontox-scroll-hero-product-row strong { display: block; color: var(--px-cream); font-size: 17px; }
+:root[data-store="pontox"] .pontox-scroll-hero-price { display: block; color: var(--px-gold); font-size: 15px; font-weight: 700; margin-top: 2px; }
+:root[data-store="pontox"] .pontox-scroll-hero-add { min-height: 40px; padding: 0 20px; background: var(--px-red); border-color: var(--px-red); color: #fff; font-weight: 700; flex-shrink: 0; }
+@keyframes pontoxHeroGlow {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(244,189,66,.3), 0 0 16px rgba(244,189,66,.2); }
+  50% { box-shadow: 0 0 0 1px rgba(244,189,66,.65), 0 0 28px rgba(244,189,66,.45); }
+}
 :root[data-store="pontox"] .search-bar input { background: var(--px-surface); border-color: var(--px-line); }
 :root[data-store="pontox"] .categories { gap: 10px; padding: 8px 2px 14px; scroll-behavior: smooth; scroll-snap-type: x proximity; }
 :root[data-store="pontox"] .categories button { min-height: 42px; padding: 9px 18px; border-radius: 999px; border-color: var(--px-line); background: var(--px-surface); color: #eadede; font-weight: 700; scroll-snap-align: start; }
