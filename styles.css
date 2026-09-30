@@ -485,11 +485,12 @@ code { background: var(--card-2); padding: 1px 5px; border-radius: 5px; font-siz
 :root[data-store="pontox"] #menu-body .menu-section-scroll .product .photo .no-photo {
   transition: none; /* parallax/zoom da imagem é só GSAP (yPercent/scale) */
 }
-/* Na vitrine, a foto é a protagonista: painel de texto mais baixo (mais foto à mostra),
-   descrição/preço menores e botão "Adicionar" pequeno (não ocupa a base inteira como na
-   grade principal) — em qualquer tamanho de tela. */
+/* Na vitrine, a foto é a protagonista: sem degradê atrás do texto (a legibilidade vem só
+   da sombra em cada texto), descrição/preço menores e botão "Adicionar" pequeno e
+   translúcido (não ocupa a base inteira como na grade principal) — em qualquer tela. */
 :root[data-store="pontox"] #menu-body .menu-section-scroll .product .info {
-  padding: 22px 12px 12px;
+  padding: 14px 12px 12px;
+  background: none;
 }
 :root[data-store="pontox"] #menu-body .menu-section-scroll .product .description {
   font-size: 11px;
@@ -497,6 +498,7 @@ code { background: var(--card-2); padding: 1px 5px; border-radius: 5px; font-siz
 }
 :root[data-store="pontox"] #menu-body .menu-section-scroll .product .price {
   font-size: 15px;
+  text-shadow: 0 1px 3px rgba(0,0,0,.85);
 }
 :root[data-store="pontox"] #menu-body .menu-section-scroll .product .bottom {
   flex-direction: row;
@@ -506,9 +508,16 @@ code { background: var(--card-2); padding: 1px 5px; border-radius: 5px; font-siz
 }
 :root[data-store="pontox"] #menu-body .menu-section-scroll .product .btn {
   width: auto;
-  min-height: 34px;
-  padding: 6px 14px;
-  font-size: 13px;
+  min-height: 26px;
+  padding: 3px 10px;
+  font-size: 11px;
+}
+:root[data-store="pontox"] #menu-body .menu-section-scroll .product .btn.primary {
+  background: rgba(229,45,56,.5);
+  border-color: rgba(255,255,255,.3);
+  color: #fff;
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
 }
 @media (min-width: 860px) and (max-width: 1179.98px) {
   :root[data-store="pontox"] #menu-body .menu-section-scroll { --sh-per-view: 3; }
