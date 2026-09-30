@@ -557,7 +557,8 @@ function updateScrollVideo() {
   if (!section || !video || !video.duration) return;
   const rect = section.getBoundingClientRect();
   const total = rect.height - window.innerHeight;
-  const progress = total > 0 ? Math.min(1, Math.max(0, -rect.top / total)) : 0;
+  const raw = total > 0 ? Math.min(1, Math.max(0, -rect.top / total)) : 0;
+  const progress = Math.min(1, raw / 0.85); // termina de montar um pouco antes do fim da seção, segurando o quadro pronto
   video.currentTime = progress * video.duration;
 }
 
