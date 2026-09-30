@@ -909,13 +909,6 @@ function getAdditionalsHtml() {
 
 const FEATURED_TITLE = '⭐ Mais Vendidos';
 
-// Vitrine cinematográfica (rolagem lateral com destaque central): "Mais Vendidos" sempre
-// entra nesse formato; categorias reais só entram se tiverem uma quantidade "razoável" de
-// produtos — poucas demais não rendem efeito de centralização, demais deixam a rolagem
-// horizontal cansativa. Fora dessa faixa, a categoria continua na grade grande normal.
-const SHOWCASE_MIN = 4;
-const SHOWCASE_MAX = 14;
-
 // Feriados nacionais fixos (mesma lista do servidor).
 const FIXED_HOLIDAYS = ['01-01', '04-21', '05-01', '09-07', '10-12', '11-02', '11-15', '11-20', '12-25'];
 
@@ -2037,13 +2030,8 @@ function menuBodyHtml() {
 
   return nav + sections.map(section => {
     const isCombos = isBurgerStore() && /combo/i.test(section.title);
-    // "Mais Vendidos" sempre vira vitrine cinematográfica; categorias reais entram junto
-    // só quando têm uma quantidade razoável de produtos (ver SHOWCASE_MIN/SHOWCASE_MAX).
-    // Fora dessa faixa (poucos ou muitos produtos), continuam na grade grande normal.
-    const isScroll = isBurgerStore() && (
-      section.title === FEATURED_TITLE ||
-      (section.products.length >= SHOWCASE_MIN && section.products.length <= SHOWCASE_MAX)
-    );
+    // Toda categoria vira vitrine cinematográfica (rolagem lateral).
+    const isScroll = isBurgerStore();
     return `
     <section id="cat-${encodeURIComponent(section.title)}" class="${isCombos ? 'menu-section-combos' : ''}">
       <h2 class="section-title">${escapeHtml(section.title)}</h2>

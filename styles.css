@@ -473,10 +473,17 @@ code { background: var(--card-2); padding: 1px 5px; border-radius: 5px; font-siz
   --sh-per-view: 2;
   gap: var(--sh-gap);
   padding-bottom: 4px;
+  /* Trava o arrasto no próprio carrossel (não deixa "vazar" pro scroll vertical da página
+     no meio do gesto) e dá o momentum nativo do iOS — sem isso o arrasto parecia "solto". */
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
 }
 :root[data-store="pontox"] #menu-body .menu-section-scroll .product {
   flex: 0 0 calc((100% - var(--sh-gap) * (var(--sh-per-view) - 1)) / var(--sh-per-view));
   scroll-snap-align: start;
+  /* Força parar em CADA card ao soltar o dedo — sem isso um flick rápido pulava vários
+     cards de uma vez, dando a sensação de o carrossel estar "solto"/sem controle. */
+  scroll-snap-stop: always;
   opacity: 1;
   transform: none;
   /* transform/opacity aqui são 100% do GSAP (escala de destaque central); a transition
