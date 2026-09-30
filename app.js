@@ -37,6 +37,12 @@ const CUSTOMER_KEY = storeKey('customer');
 const ORDERS_KEY = storeKey('orders');
 const isBurgerStore = () => document.documentElement.dataset.store === 'pontox';
 const storeCopy = (burger, market) => isBurgerStore() ? burger : market;
+
+// Vitrine cinematográfica (ver armProductShowcases, mais abaixo): só liga se o GSAP e o
+// ScrollTrigger carregaram do CDN. Sem eles (ou com "reduzir movimento" ativado), a vitrine
+// continua funcionando no baseline CSS puro (rolagem/snap nativo), só sem os efeitos.
+const gsapReady = typeof window.gsap !== 'undefined' && typeof window.ScrollTrigger !== 'undefined';
+if (gsapReady) gsap.registerPlugin(ScrollTrigger);
 const voiceExample = () => storeCopy('Fale os itens com as quantidades. Ex.: "dois X-Tudo e uma Coca-Cola".', 'Fale os produtos com as quantidades, do seu jeito. Ex.: "um gelo, três latão Brahma e três latão Heineken".');
 
 // Foto indisponível usa uma identificação neutra, sem mostrar uma imagem quebrada.
@@ -578,7 +584,9 @@ let productRevealObserver = null;
 function armProductReveal() {
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
-  const cards = document.querySelectorAll('#menu-body .product[data-pid]');
+  // Cards da vitrine cinematográfica (.menu-section-scroll) têm a própria entrada, via
+  // armProductShowcases() — não competem com esse observer de "revelar ao rolar a página".
+  const cards = document.querySelectorAll('#menu-body .products:not(.menu-section-scroll) .product[data-pid]');
   if (!cards.length) return;
 
   productRevealObserver?.disconnect();
@@ -596,6 +604,145 @@ function armProductReveal() {
     else productRevealObserver.observe(card);
   });
 }
+
+// Vitrine cinematográfica (.menu-section-scroll): o card mais próximo do centro do
+// contêiner ganha destaque (maior, mais opaco), a foto tem parallax próprio, e o nome/preço
+// sobem suavemente quando um card vira o "líder". Desktop (≥860px): a rolagem vertical da
+// página "pina" a seção e avança a trilha (ScrollTrigger.scrub). Celular: rolagem horizontal
+// nativa com snap — GSAP só lê a posição e escreve escala/opacidade/parallax por cima, nunca
+// é dono do gesto (o scroll nativo já suprime o click sintético depois de um arrasto; a
+// guarda em showcaseDragStart cobre o caso de flick rápido no iOS). Sem GSAP ou com "reduzir
+// movimento" ativado, a navegação simples por scroll-snap (CSS puro) já funciona sozinha —
+// tudo isso é aditivo, nunca pré-condição para rolar/pedir.
+const showcaseScrollState = new Map(); // id da <section> → scrollLeft salvo (só celular, sobrevive ao re-render)
+const showcaseDragStart = new WeakMap(); // contêiner → scrollLeft no último pointerdown (evita abrir produto após arrasto)
+const SHOWCASE_DESKTOP_MIN = 860; // mesmo breakpoint já usado na grade (styles.css)
+let showcaseResizeTimer = null;
+
+function killShowcases() {
+  if (!gsapReady) return;
+  ScrollTrigger.getAll().filter(st => st.vars.id?.startsWith('showcase-')).forEach(st => st.kill());
+}
+
+function saveShowcaseScroll() {
+  document.querySelectorAll('#menu-body .products.menu-section-scroll').forEach(track => {
+    const section = track.closest('section');
+    if (section) showcaseScrollState.set(section.id, track.scrollLeft);
+  });
+}
+
+function buildShowcaseCardMeta(cards) {
+  return cards.map(el => ({ el, pid: el.dataset.pid, center: el.offsetLeft + el.offsetWidth / 2, width: el.offsetWidth || 260 }));
+}
+
+// Aplica escala/opacidade/parallax conforme a distância de cada card ao centro do contêiner
+// (aritmética pura, sem getBoundingClientRect por frame) e dispara a microanimação de
+// "encaixe" no .info só quando o card líder (mais próximo do centro) muda de identidade.
+function applyShowcaseProximity(track, cardMeta, currentOffset, leadState) {
+  const viewportHalf = track.clientWidth / 2;
+  const falloff = cardMeta[0]?.width || 260;
+  let leader = null;
+
+  cardMeta.forEach(meta => {
+    const distance = meta.center - currentOffset - viewportHalf;
+    const closeness = 1 - Math.min(1, Math.abs(distance) / (falloff * 1.15));
+    gsap.set(meta.el, { scale: gsap.utils.interpolate(0.88, 1, closeness), autoAlpha: gsap.utils.interpolate(0.65, 1, closeness) });
+
+    const img = meta.el.querySelector('.photo img, .photo .no-photo');
+    if (img) {
+      const parallax = Math.max(-1, Math.min(1, distance / (falloff * 1.6)));
+      gsap.set(img, { yPercent: parallax * 6, scale: 1.12 });
+    }
+
+    if (!leader || closeness > leader.closeness) leader = { pid: meta.pid, el: meta.el, closeness };
+  });
+
+  if (leader && leader.pid !== leadState.currentCenterPid) {
+    leadState.currentCenterPid = leader.pid;
+    const info = leader.el.querySelector('.info');
+    if (info) gsap.fromTo(info, { y: 14, opacity: .5 }, { y: 0, opacity: 1, duration: .35, ease: 'back.out(1.6)', overwrite: 'auto' });
+  }
+}
+
+function armShowcaseDesktop(section, track, cards) {
+  const cardMeta = buildShowcaseCardMeta(cards);
+  const leadState = { currentCenterPid: null };
+  const speedFactor = 0.6; // desacelera o avanço da trilha em relação ao scroll da página
+  const maxPin = window.innerHeight * 2.2; // teto: categorias com muitos produtos não viram um túnel de scroll
+  const anim = gsap.to(track, { x: () => -(track.scrollWidth - track.clientWidth), ease: 'none' });
+
+  ScrollTrigger.create({
+    id: `showcase-${section.id}`,
+    trigger: section,
+    start: 'top 132px', // mesmo offset de .search-bar + .categories fixos (styles.css)
+    end: () => '+=' + Math.min(maxPin, Math.max(1, track.scrollWidth - track.clientWidth) * speedFactor),
+    pin: track,
+    scrub: 0.4,
+    invalidateOnRefresh: true,
+    animation: anim,
+    onUpdate: () => applyShowcaseProximity(track, cardMeta, -Number(gsap.getProperty(track, 'x')), leadState),
+  });
+
+  applyShowcaseProximity(track, cardMeta, 0, leadState);
+}
+
+function armShowcaseMobile(track, cards) {
+  const cardMeta = buildShowcaseCardMeta(cards);
+  const leadState = { currentCenterPid: null };
+  let ticking = false;
+  let settleTimer = null;
+  const update = () => applyShowcaseProximity(track, cardMeta, track.scrollLeft, leadState);
+
+  track.addEventListener('scroll', () => {
+    if (!ticking) {
+      ticking = true;
+      requestAnimationFrame(() => { update(); ticking = false; });
+    }
+    // "Encaixe": recalcula quando a rolagem para de vez (scrollend nativo, com fallback por
+    // debounce em navegadores que ainda não suportam o evento).
+    clearTimeout(settleTimer);
+    settleTimer = setTimeout(update, 150);
+  }, { passive: true });
+  track.addEventListener('scrollend', update, { passive: true });
+
+  update();
+}
+
+function armProductShowcases() {
+  const containers = document.querySelectorAll('#menu-body .products.menu-section-scroll');
+  if (!containers.length) return;
+
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const desktop = window.innerWidth >= SHOWCASE_DESKTOP_MIN;
+
+  containers.forEach(track => {
+    const section = track.closest('section');
+    if (!section) return;
+
+    // Restaura a posição salva (celular) antes de qualquer cálculo, pra não "voltar ao
+    // início" a cada re-render (+/- do carrinho, poll de promoção a cada 20s...).
+    const savedLeft = showcaseScrollState.get(section.id);
+    if (savedLeft) track.scrollLeft = savedLeft;
+
+    // Guarda de clique-vs-arrasto: vale sempre, mesmo sem GSAP/com reduzir movimento.
+    track.addEventListener('pointerdown', () => showcaseDragStart.set(track, track.scrollLeft), { passive: true });
+
+    if (reduced || !gsapReady) return; // baseline CSS (scroll-snap simples) já é suficiente
+
+    const cards = Array.from(track.querySelectorAll('.product[data-pid]'));
+    if (cards.length < 2) return; // sem "vizinhos" não há efeito de destaque central pra fazer
+
+    if (desktop) armShowcaseDesktop(section, track, cards);
+    else armShowcaseMobile(track, cards);
+  });
+}
+
+// Cruzar 860px muda o mecanismo (pin+scrub vs. rolagem nativa), não só o tamanho — por isso
+// precisa rearmar do zero, não só re-medir.
+window.addEventListener('resize', () => {
+  clearTimeout(showcaseResizeTimer);
+  showcaseResizeTimer = setTimeout(() => { killShowcases(); armProductShowcases(); }, 200);
+});
 
 // Foto pequena de uma linha do carrinho: a da variação (ex.: Red Bull Tradicional), senão a do produto.
 function cartPhotoHtml(product, variant) {
@@ -759,6 +906,13 @@ function getAdditionalsHtml() {
 }
 
 const FEATURED_TITLE = '⭐ Mais Vendidos';
+
+// Vitrine cinematográfica (rolagem lateral com destaque central): "Mais Vendidos" sempre
+// entra nesse formato; categorias reais só entram se tiverem uma quantidade "razoável" de
+// produtos — poucas demais não rendem efeito de centralização, demais deixam a rolagem
+// horizontal cansativa. Fora dessa faixa, a categoria continua na grade grande normal.
+const SHOWCASE_MIN = 4;
+const SHOWCASE_MAX = 14;
 
 // Feriados nacionais fixos (mesma lista do servidor).
 const FIXED_HOLIDAYS = ['01-01', '04-21', '05-01', '09-07', '10-12', '11-02', '11-15', '11-20', '12-25'];
@@ -1881,10 +2035,13 @@ function menuBodyHtml() {
 
   return nav + sections.map(section => {
     const isCombos = isBurgerStore() && /combo/i.test(section.title);
-    // Só "Mais Vendidos" é vitrine horizontal compacta (rolagem lateral, para navegar
-    // rápido pelos mais pedidos). Todas as categorias reais (Hambúrgueres, Combos,
-    // Bebidas, etc.) usam a mesma grade grande de cards.
-    const isScroll = isBurgerStore() && section.title === FEATURED_TITLE;
+    // "Mais Vendidos" sempre vira vitrine cinematográfica; categorias reais entram junto
+    // só quando têm uma quantidade razoável de produtos (ver SHOWCASE_MIN/SHOWCASE_MAX).
+    // Fora dessa faixa (poucos ou muitos produtos), continuam na grade grande normal.
+    const isScroll = isBurgerStore() && (
+      section.title === FEATURED_TITLE ||
+      (section.products.length >= SHOWCASE_MIN && section.products.length <= SHOWCASE_MAX)
+    );
     return `
     <section id="cat-${encodeURIComponent(section.title)}" class="${isCombos ? 'menu-section-combos' : ''}">
       <h2 class="section-title">${escapeHtml(section.title)}</h2>
@@ -1967,21 +2124,36 @@ function renderMenu() {
     });
   }
 
+  // Antes de recriar o DOM do cardápio: mata os ScrollTriggers da vitrine (senão ficam
+  // apontando pro nó antigo) e salva a posição de rolagem horizontal (celular) pra restaurar
+  // depois — sem isso, todo +/- do carrinho ou poll de promoção "voltaria ao início".
+  killShowcases();
+  saveShowcaseScroll();
+
   // Vídeo fica num slot próprio, acima da busca (a busca continua fora do menu-body
   // para não perder o foco do input a cada tecla digitada).
   document.getElementById('video-slot').innerHTML = state.products.length ? pontoxScrollVideoHeroHtml() : '';
   document.getElementById('menu-body').innerHTML = menuBodyHtml();
   document.getElementById('cart-slot').innerHTML = cartBarHtml();
   armProductReveal();
+  armProductShowcases();
 }
 
 app.addEventListener('click', event => {
   const target = event.target.closest('button, a');
 
   if (!target) {
-    // Clique no card fora dos botões (foto, nome, descrição) abre o detalhe do produto.
+    // Clique no card fora dos botões (foto, nome, descrição) abre o detalhe do produto —
+    // exceto se esse clique veio logo depois de um arrasto na vitrine horizontal (celular),
+    // onde um flick rápido no iOS pode gerar um "click" sintético mesmo tendo rolado.
     const card = event.target.closest('#menu-body .product[data-pid]');
-    if (card) openProduct(card.dataset.pid);
+    if (!card) return;
+    const track = card.closest('.menu-section-scroll');
+    if (track) {
+      const dragStart = showcaseDragStart.get(track);
+      if (dragStart !== undefined && Math.abs(track.scrollLeft - dragStart) > 6) return;
+    }
+    openProduct(card.dataset.pid);
     return;
   }
 
