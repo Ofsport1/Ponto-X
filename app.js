@@ -557,8 +557,7 @@ function updateScrollVideo() {
   if (!section || !video || !video.duration) return;
   const rect = section.getBoundingClientRect();
   const total = rect.height - window.innerHeight;
-  const raw = total > 0 ? Math.min(1, Math.max(0, -rect.top / total)) : 0;
-  const progress = Math.min(1, raw / 0.85); // termina de montar um pouco antes do fim da seção, segurando o quadro pronto
+  const progress = total > 0 ? Math.min(1, Math.max(0, -rect.top / total)) : 0;
   video.currentTime = progress * video.duration;
 }
 
@@ -1907,7 +1906,9 @@ app.addEventListener('click', event => {
     document.getElementById(`cat-${encodeURIComponent(target.dataset.cat)}`)
       ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } else if (target.dataset.skipHero !== undefined) {
-    document.getElementById('menu-body')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Não pode mirar em #menu-body: o vídeo está no topo dele, então "rolar até lá" seria
+    // rolar até onde já se está. Mira na primeira seção de produtos de verdade.
+    document.querySelector('#menu-body section[id^="cat-"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } else if (target.dataset.reorder) {
     reorder(target.dataset.reorder, target);
   } else if (target.dataset.bulk) {
