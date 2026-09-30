@@ -677,6 +677,61 @@ function openVariants(productId) {
   });
 }
 
+// Clique no card (fora dos botões) abre o detalhe do produto: foto grande, descrição
+// completa e a mesma ação de sempre. Produto com variação reaproveita openVariants();
+// esgotado reaproveita openSimilar() — mesmo comportamento que os botões já tinham.
+function openProduct(productId) {
+  const product = productById(productId);
+
+  if (!product) return;
+  if (product.variants.length) return openVariants(productId);
+  if (product.available === false) return openSimilar(productId);
+
+  const promo = promoNow(product);
+  const key = cartKey(product.id);
+  const qty = state.cart[key] || 0;
+
+  const sheet = openSheet(`
+    <div class="sheet-head"><h2>${escapeHtml(product.name)}</h2><button data-close aria-label="Fechar">✕</button></div>
+    ${product.image_url ? `<img class="variant-photo" src="${escapeHtml(product.image_url)}" alt="" />` : ''}
+    ${product.description ? `<p class="muted">${escapeHtml(product.description)}</p>` : ''}
+    ${storeFeatures().weight !== false && product.sold_by_weight && product.kg_price_cents ? `<p class="kg-price">${money(product.kg_price_cents)} <small>o quilo</small></p>` : ''}
+    ${storeFeatures().weight !== false && product.sold_by_weight ? WEIGHT_NOTICE_HTML : ''}
+    <div class="deal-row">${dealHtml(product, promo)}</div>
+    <div class="cart-line">
+      <span class="name"><span class="price">${promo ? `<s class="old-price">${money(product.price_cents)}</s> <span class="promo-price">${money(promo.price_cents)}</span>` : productPriceHtml(product)}</span></span>
+      <span class="qty">
+        ${qty
+          ? `<button data-dec="${key}" aria-label="Diminuir">−</button><span>${qty}</span><button data-inc="${key}" aria-label="Aumentar">+</button>`
+          : `<button class="btn primary" data-inc="${key}">Adicionar</button>`}
+      </span>
+    </div>
+    <button class="btn primary block" data-close style="margin-top:16px">Pronto</button>
+  `);
+
+  sheet.addEventListener('click', event => {
+    const btn = event.target.closest('button');
+
+    if (!btn) return;
+
+    if (btn.dataset.inc) {
+      const before = state.cart[btn.dataset.inc] || 0;
+      setQty(btn.dataset.inc, before + 1);
+      if (!before) addedFeedback(resolveCartKey(btn.dataset.inc)?.name);
+    } else if (btn.dataset.dec) {
+      setQty(btn.dataset.dec, (state.cart[btn.dataset.dec] || 0) - 1);
+    } else if (btn.dataset.bulk) {
+      setQty(btn.dataset.bulk, (state.cart[btn.dataset.bulk] || 0) + Number(btn.dataset.bulkQty));
+      addedFeedback(`${btn.dataset.bulkQty} un.`);
+    } else {
+      return;
+    }
+
+    openProduct(productId);
+    renderMenu();
+  });
+}
+
 function getAdditionalsHtml() {
   const additionals = state.products.filter(p =>
     p.available !== false && p.name.toLowerCase().includes('adicional') && p.category === 'Hambúrgueres'
@@ -1824,7 +1879,7 @@ function menuBodyHtml() {
     ? `<nav class="categories">${sections.map(s => `<button data-cat="${escapeHtml(s.title)}">${escapeHtml(s.title)}</button>`).join('')}</nav>`
     : '';
 
-  return nav + pontoxScrollVideoHeroHtml() + sections.map(section => {
+  return nav + sections.map(section => {
     const isCombos = isBurgerStore() && /combo/i.test(section.title);
     // Combos e Mais Vendidos são vitrines horizontais compactas (rolagem lateral),
     // diferente da grade grande das demais categorias.
@@ -1887,6 +1942,7 @@ function renderMenu() {
       ${storeNoticeHtml()}
       <div id="insights-slot">${insightsHtml()}</div>
       <div id="install-slot">${installBannerHtml()}</div>
+      <div id="video-slot"></div>
       ${state.products.length ? `
         <div class="search-bar ${SpeechRec ? 'has-mic' : ''}">
           <input id="search" type="search" placeholder="${storeCopy('🔎 Buscar lanche, combo ou bebida', '🔎 Buscar produto (ex.: heineken, carvão, gelo)')}" autocomplete="off" value="${escapeHtml(state.search)}" />
@@ -1910,6 +1966,9 @@ function renderMenu() {
     });
   }
 
+  // Vídeo fica num slot próprio, acima da busca (a busca continua fora do menu-body
+  // para não perder o foco do input a cada tecla digitada).
+  document.getElementById('video-slot').innerHTML = state.products.length ? pontoxScrollVideoHeroHtml() : '';
   document.getElementById('menu-body').innerHTML = menuBodyHtml();
   document.getElementById('cart-slot').innerHTML = cartBarHtml();
   armProductReveal();
@@ -1918,7 +1977,12 @@ function renderMenu() {
 app.addEventListener('click', event => {
   const target = event.target.closest('button, a');
 
-  if (!target) return;
+  if (!target) {
+    // Clique no card fora dos botões (foto, nome, descrição) abre o detalhe do produto.
+    const card = event.target.closest('#menu-body .product[data-pid]');
+    if (card) openProduct(card.dataset.pid);
+    return;
+  }
 
   if (target.dataset.inc) {
     const before = state.cart[target.dataset.inc] || 0;
