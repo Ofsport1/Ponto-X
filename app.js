@@ -388,6 +388,7 @@ function productHtml(product) {
       </div>
       <div class="info">
         <h3>${escapeHtml(product.name)}</h3>
+        ${product.description ? `<p class="description">${escapeHtml(product.description)}</p>` : ''}
         <div class="deal-row">${off ? '' : dealHtml(product, promo)}</div>
         <div class="bottom">
           <span class="price">${promo ? `<s class="old-price">${money(product.price_cents)}</s> <span class="promo-price">${money(promo.price_cents)}</span>` : productPriceHtml(product)}</span>
@@ -477,6 +478,8 @@ function openVariants(productId) {
 
   if (!product) return;
 
+  const additionalsHtml = product.category === 'Hambúrgueres' ? getAdditionalsHtml() : '';
+
   const sheet = openSheet(`
     <div class="sheet-head"><h2>${escapeHtml(product.name)}</h2><button data-close aria-label="Fechar">✕</button></div>
     ${product.image_url ? `<img class="variant-photo" src="${escapeHtml(product.image_url)}" alt="" />` : ''}
@@ -501,6 +504,7 @@ function openVariants(productId) {
           </span>
         </div>`;
     }).join('')}
+    ${additionalsHtml}
     <button class="btn primary block" data-close style="margin-top:16px">Pronto</button>
   `);
 
@@ -517,6 +521,12 @@ function openVariants(productId) {
       setQty(btn.dataset.vdec, (state.cart[btn.dataset.vdec] || 0) - 1);
     } else if (btn.dataset.vbulk) {
       setQty(btn.dataset.vbulk, (state.cart[btn.dataset.vbulk] || 0) + Number(btn.dataset.bulkQty));
+    } else if (btn.dataset.ainc) {
+      const before = state.cart[btn.dataset.ainc] || 0;
+      setQty(btn.dataset.ainc, before + 1);
+      if (!before) addedFeedback(resolveCartKey(btn.dataset.ainc)?.name);
+    } else if (btn.dataset.adec) {
+      setQty(btn.dataset.adec, (state.cart[btn.dataset.adec] || 0) - 1);
     } else {
       return;
     }
@@ -524,6 +534,32 @@ function openVariants(productId) {
     openVariants(productId);
     renderMenu();
   });
+}
+
+function getAdditionalsHtml() {
+  const additionals = state.products.filter(p =>
+    p.available !== false && p.name.toLowerCase().includes('adicional') && p.category === 'Hambúrgueres'
+  );
+
+  if (!additionals.length) return '';
+
+  return `
+    <div style="margin-top:24px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.2)">
+      <h3 style="margin:0 0 12px;font-size:14px;font-weight:600">Adicionais disponíveis</h3>
+      ${additionals.map(addon => {
+        const key = cartKey(addon.id);
+        const qty = state.cart[key] || 0;
+        return `
+          <div class="cart-line">
+            <span class="name">${escapeHtml(addon.name)}<br><span class="price">${money(addon.price_cents)}</span></span>
+            <span style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+              ${qty
+                ? `<span class="qty"><button data-adec="${key}">−</button><span>${qty}</span><button data-ainc="${key}">+</button></span>`
+                : `<button class="btn small primary" data-ainc="${key}">Adicionar</button>`}
+            </span>
+          </div>`;
+      }).join('')}
+    </div>`;
 }
 
 const FEATURED_TITLE = '⭐ Mais Vendidos';
