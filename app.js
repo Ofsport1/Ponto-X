@@ -1826,11 +1826,13 @@ function menuBodyHtml() {
 
   return nav + pontoxScrollVideoHeroHtml() + sections.map(section => {
     const isCombos = isBurgerStore() && /combo/i.test(section.title);
-    const isFeaturedScroll = isBurgerStore() && section.title === FEATURED_TITLE;
+    // Combos e Mais Vendidos são vitrines horizontais compactas (rolagem lateral),
+    // diferente da grade grande das demais categorias.
+    const isScroll = isBurgerStore() && (section.title === FEATURED_TITLE || isCombos);
     return `
     <section id="cat-${encodeURIComponent(section.title)}" class="${isCombos ? 'menu-section-combos' : ''}">
       <h2 class="section-title">${escapeHtml(section.title)}</h2>
-      <div class="products ${isFeaturedScroll ? 'menu-section-scroll' : ''}">
+      <div class="products ${isScroll ? 'menu-section-scroll' : ''}">
         ${section.products.map(productHtml).join('')}
       </div>
     </section>`;
