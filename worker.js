@@ -968,7 +968,9 @@ async function handleMenu(request, env) {
   const [response, today] = await Promise.all([
     supabaseFetch(
       env,
-      `products?select=id,name,description,category,price_cents,bulk_qty,bulk_price_cents,chill_fee_cents,promo_price_cents,promo_starts_at,promo_ends_at,promo_weekdays,created_at,image_url,featured,featured_order,suggest,available,sold_by_weight,kg_price_cents,is_addon,product_variants(id,name,price_cents,bulk_qty,bulk_price_cents,available,sort_order,image_url)&store_id=eq.${store.id}&order=sort_order.asc,name.asc`
+      // is_addon entra depois que a migration correspondente for aplicada no Supabase.
+      // Manter o cardápio sem essa coluna evita derrubar a vitrine durante a migração.
+      `products?select=id,name,description,category,price_cents,bulk_qty,bulk_price_cents,chill_fee_cents,promo_price_cents,promo_starts_at,promo_ends_at,promo_weekdays,created_at,image_url,featured,featured_order,suggest,available,sold_by_weight,kg_price_cents,product_variants(id,name,price_cents,bulk_qty,bulk_price_cents,available,sort_order,image_url)&store_id=eq.${store.id}&order=sort_order.asc,name.asc`
     ),
     todayStats(env, store).catch(() => null),
   ]);
