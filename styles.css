@@ -556,10 +556,12 @@ code { background: var(--card-2); padding: 1px 5px; border-radius: 5px; font-siz
 :root[data-store="pontox"] #menu-body .product.is-promo { border-color: rgba(244,189,66,.72); animation: none; }
 /* Vitrine horizontal: mantém scroll-snap/GSAP, mas usa o mesmo card separado em duas áreas. */
 :root[data-store="pontox"] #menu-body .menu-section-scroll {
-  --sh-gap: 14px;
-  --sh-per-view: 2;
+  --sh-gap: 12px;
+  --sh-per-view: 1.5;
   gap: var(--sh-gap);
   padding-bottom: 4px;
+  scroll-snap-type: none;
+  scroll-behavior: auto;
   /* Trava o arrasto no próprio carrossel (não deixa "vazar" pro scroll vertical da página
      no meio do gesto) e dá o momentum nativo do iOS — sem isso o arrasto parecia "solto". */
   overscroll-behavior-x: contain;
@@ -567,7 +569,7 @@ code { background: var(--card-2); padding: 1px 5px; border-radius: 5px; font-siz
 }
 :root[data-store="pontox"] #menu-body .menu-section-scroll .product {
   flex: 0 0 calc((100% - var(--sh-gap) * (var(--sh-per-view) - 1)) / var(--sh-per-view));
-  scroll-snap-align: start;
+  scroll-snap-align: none;
   /* Força parar em CADA card ao soltar o dedo — sem isso um flick rápido pulava vários
      cards de uma vez, dando a sensação de o carrossel estar "solto"/sem controle. */
   scroll-snap-stop: always;
@@ -611,11 +613,11 @@ code { background: var(--card-2); padding: 1px 5px; border-radius: 5px; font-siz
   padding: 0 14px;
   font-size: 12px;
 }
-@media (min-width: 860px) and (max-width: 1179.98px) {
-  :root[data-store="pontox"] #menu-body .menu-section-scroll { --sh-per-view: 3; }
+@media (min-width: 860px) {
+  :root[data-store="pontox"] #menu-body .menu-section-scroll { --sh-per-view: 2.5; }
 }
 @media (min-width: 1180px) {
-  :root[data-store="pontox"] #menu-body .menu-section-scroll { --sh-per-view: 4; }
+  :root[data-store="pontox"] #menu-body .menu-section-scroll { --sh-per-view: 3.5; }
 }
 :root[data-store="pontox"] .menu-section-combos .product { border-color: rgba(244,189,66,.35); }
 :root[data-store="pontox"] .menu-section-combos .section-title { color: var(--px-gold); }

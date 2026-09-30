@@ -732,6 +732,9 @@ function armShowcaseMobile(track, cards) {
 }
 
 function armProductShowcases() {
+  // A faixa usa apenas o scroll horizontal nativo; não pinamos nem animamos a página.
+  return;
+
   const containers = document.querySelectorAll('#menu-body .products.menu-section-scroll');
   if (!containers.length) return;
 
@@ -2064,8 +2067,8 @@ function menuBodyHtml() {
 
   return nav + sections.map(section => {
     const isCombos = isBurgerStore() && /combo/i.test(section.title);
-    // Toda categoria vira vitrine cinematográfica (rolagem lateral).
-    const isScroll = false;
+    // Cada categoria mantém sua própria faixa horizontal de produtos.
+    const isScroll = isBurgerStore();
     const sectionTitle = normalizeText(section.title).includes('acai') ? 'Monte seu açaí' : section.title;
     return `
     <section id="cat-${encodeURIComponent(section.title)}" class="${isCombos ? 'menu-section-combos' : ''}">
