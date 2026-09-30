@@ -375,12 +375,10 @@ function pontoxScrollVideoHeroHtml() {
     ? `<button class="btn primary pontox-scroll-hero-add" data-choose="${special.id}">Adicionar</button>`
     : `<button class="btn primary pontox-scroll-hero-add" data-inc="${cartKey(special.id)}">Adicionar</button>`);
 
-  return `<section class="pontox-scroll-hero" aria-label="Como montamos seu hambúrguer">
+  return `<section class="pontox-scroll-hero" aria-label="Montagem do hambúrguer">
     <div class="pontox-scroll-hero-sticky">
       <video class="pontox-scroll-video" data-src="assets/burger-assembly.mp4" muted playsinline preload="none"></video>
       <div class="pontox-scroll-hero-copy">
-        <span class="eyebrow">Direto da chapa</span>
-        <h2>Seu hambúrguer, montado na hora</h2>
         ${special ? `<div class="pontox-scroll-hero-product">
           <span class="pontox-scroll-hero-badge">★ Especial da casa</span>
           <div class="pontox-scroll-hero-product-row">
@@ -411,6 +409,10 @@ function productPriceHtml(product) {
   return min === Math.max(...prices) ? money(min) : `<small class="muted">a partir de</small> ${money(min)}`;
 }
 
+function isDrinkProduct(product) {
+  return /bebida|refrigerante|suco|água|agua|cerveja|drink/i.test(`${product.category || ''} ${product.name || ''}`);
+}
+
 function productHtml(product) {
   const off = product.available === false;
   let action;
@@ -419,7 +421,10 @@ function productHtml(product) {
     action = `<button class="btn small" data-similar="${product.id}">Ver parecidos</button>`;
   } else if (product.variants.length) {
     const count = productCartCount(product.id);
-    action = `<button class="btn small primary" data-choose="${product.id}">${count ? `Escolher (${count})` : 'Escolher'}</button>`;
+    const chooseLabel = normalizeText(`${product.category || ''} ${product.name || ''}`).includes('acai')
+      ? (count ? `Monte seu açaí (${count})` : 'Monte seu açaí')
+      : (count ? `Escolher (${count})` : 'Escolher');
+    action = `<button class="btn small primary" data-choose="${product.id}">${chooseLabel}</button>`;
   } else {
     const key = cartKey(product.id);
     const qty = state.cart[key] || 0;
@@ -452,7 +457,6 @@ function productHtml(product) {
       </div>
       <div class="info">
         <h3>${escapeHtml(product.name)}</h3>
-        ${product.description ? `<p class="description">${escapeHtml(product.description)}</p>` : ''}
         <div class="deal-row">${off ? '' : dealHtml(product, promo)}</div>
         <div class="bottom">
           <span class="price">${promo ? `<s class="old-price">${money(product.price_cents)}</s> <span class="promo-price">${money(promo.price_cents)}</span>` : productPriceHtml(product)}</span>
@@ -578,9 +582,9 @@ function updateScrollVideo() {
   const rect = section.getBoundingClientRect();
   const total = rect.height - window.innerHeight;
   const progress = total > 0 ? Math.min(1, Math.max(0, -rect.top / total)) : 0;
-  // Corta 1s do fim do vídeo (sem reencodar o arquivo): o scroll nunca chega no
-  // último segundo de verdade, sempre para 1s antes.
-  const effectiveDuration = Math.max(0, video.duration - 1);
+  // Encurta o trecho exibido em 1,5s (sem reencodar o arquivo): o scroll nunca chega
+  // aos últimos 1,5 segundos do vídeo de verdade.
+  const effectiveDuration = Math.max(0, video.duration - 1.5);
   video.currentTime = progress * effectiveDuration;
 }
 
@@ -599,7 +603,7 @@ const revealedProductIds = new Set();
 let productRevealObserver = null;
 
 function armProductReveal() {
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  return;
 
   // Cards da vitrine cinematográfica (.menu-section-scroll) têm a própria entrada, via
   // armProductShowcases() — não competem com esse observer de "revelar ao rolar a página".
@@ -785,12 +789,12 @@ function openVariants(productId) {
 
   if (!product) return;
 
-  const additionalsHtml = product.category === 'Hambúrgueres' ? getAdditionalsHtml() : '';
+  const additionalsHtml = product.category === 'Hambúrgueres' && productCartCount(product.id) > 0 ? getAdditionalsHtml() : '';
 
   const sheet = openSheet(`
     <div class="sheet-head"><h2>${escapeHtml(product.name)}</h2><button data-close aria-label="Fechar">✕</button></div>
     ${product.image_url ? `<img class="variant-photo" src="${escapeHtml(product.image_url)}" alt="" />` : ''}
-    ${product.description ? `<p class="muted">${escapeHtml(product.description)}</p>` : ''}
+    ${product.description && !isDrinkProduct(product) ? `<p class="muted">${escapeHtml(product.description)}</p>` : ''}
     ${storeFeatures().weight !== false && product.sold_by_weight && product.kg_price_cents ? `<p class="kg-price">${money(product.kg_price_cents)} <small>o quilo</small></p>` : ''}
     ${storeFeatures().weight !== false && product.sold_by_weight ? WEIGHT_NOTICE_HTML : ''}
     ${product.variants.map(variant => {
@@ -812,7 +816,9 @@ function openVariants(productId) {
         </div>`;
     }).join('')}
     ${additionalsHtml}
-    <button class="btn primary block" data-close style="margin-top:16px">Pronto</button>
+    <div class="sheet-product-actions">
+      <button class="btn block" data-close style="margin-top:16px">Continuar comprando</button>
+    </div>
   `);
 
   sheet.addEventListener('click', event => {
@@ -856,12 +862,12 @@ function openProduct(productId) {
   const promo = promoNow(product);
   const key = cartKey(product.id);
   const qty = state.cart[key] || 0;
-  const additionalsHtml = product.category === 'Hambúrgueres' ? getAdditionalsHtml() : '';
+  const additionalsHtml = product.category === 'Hambúrgueres' && productCartCount(product.id) > 0 ? getAdditionalsHtml() : '';
 
   const sheet = openSheet(`
     <div class="sheet-head"><h2>${escapeHtml(product.name)}</h2><button data-close aria-label="Fechar">✕</button></div>
     ${product.image_url ? `<img class="variant-photo" src="${escapeHtml(product.image_url)}" alt="" />` : ''}
-    ${product.description ? `<p class="muted">${escapeHtml(product.description)}</p>` : ''}
+    ${product.description && !isDrinkProduct(product) ? `<p class="muted">${escapeHtml(product.description)}</p>` : ''}
     ${storeFeatures().weight !== false && product.sold_by_weight && product.kg_price_cents ? `<p class="kg-price">${money(product.kg_price_cents)} <small>o quilo</small></p>` : ''}
     ${storeFeatures().weight !== false && product.sold_by_weight ? WEIGHT_NOTICE_HTML : ''}
     <div class="deal-row">${dealHtml(product, promo)}</div>
@@ -870,11 +876,14 @@ function openProduct(productId) {
       <span class="qty">
         ${qty
           ? `<button data-dec="${key}" aria-label="Diminuir">−</button><span>${qty}</span><button data-inc="${key}" aria-label="Aumentar">+</button>`
-          : `<button class="btn primary" data-inc="${key}">Adicionar</button>`}
+          : '<span class="muted">Escolha a quantidade abaixo</span>'}
       </span>
     </div>
     ${additionalsHtml}
-    <button class="btn primary block" data-close style="margin-top:16px">Pronto</button>
+    <div class="sheet-product-actions">
+      ${qty === 0 ? `<button class="btn primary block" data-inc="${key}" style="margin-top:16px">Adicionar</button>` : ''}
+      <button class="btn block" data-close style="margin-top:8px">Continuar comprando</button>
+    </div>
   `);
 
   sheet.addEventListener('click', event => {
@@ -2056,10 +2065,11 @@ function menuBodyHtml() {
   return nav + sections.map(section => {
     const isCombos = isBurgerStore() && /combo/i.test(section.title);
     // Toda categoria vira vitrine cinematográfica (rolagem lateral).
-    const isScroll = isBurgerStore();
+    const isScroll = false;
+    const sectionTitle = normalizeText(section.title).includes('acai') ? 'Monte seu açaí' : section.title;
     return `
     <section id="cat-${encodeURIComponent(section.title)}" class="${isCombos ? 'menu-section-combos' : ''}">
-      <h2 class="section-title">${escapeHtml(section.title)}</h2>
+      <h2 class="section-title">${escapeHtml(sectionTitle)}</h2>
       <div class="products ${isScroll ? 'menu-section-scroll' : ''}">
         ${section.products.map(productHtml).join('')}
       </div>
@@ -2125,7 +2135,6 @@ function renderMenu() {
       <div id="menu-body"></div>
       ${siteFooterHtml()}
       <div id="cart-slot"></div>
-      ${supportButtonHtml()}
     `;
 
     loadOrderChip();
@@ -2443,8 +2452,8 @@ function siteFooterHtml() {
             <span class="ico">📸</span><span><small>Siga no Instagram</small>@${instagram}</span>
           </a>` : ''}
         ${phone.length >= 10 ? `
-          <a class="footer-link" href="https://wa.me/55${escapeHtml(phone)}" target="_blank" rel="noopener">
-            <span class="ico">💬</span><span><small>WhatsApp</small>${escapeHtml(phoneText)}</span>
+          <a class="footer-link" href="https://wa.me/55${escapeHtml(phone)}?text=${encodeURIComponent('Olá! Preciso de ajuda com uma dúvida / um pedido no delivery.')}" target="_blank" rel="noopener">
+            <span class="ico">💬</span><span><small>Ajuda pelo WhatsApp</small>${escapeHtml(phoneText)}</span>
           </a>` : ''}
       </div>
 
@@ -2475,7 +2484,7 @@ function siteFooterHtml() {
 
       ${profile.alcohol_notice !== false ? '<p class="footer-legal">🔞 Venda de bebidas alcoólicas proibida para menores de 18 anos. Se beber, não dirija.</p>' : ''}
       <p class="footer-legal">© ${year} ${escapeHtml(store.name || '')}</p>
-      <p class="footer-legal footer-dev">Desenvolvido por <strong>Ultrion</strong></p>
+      <p class="footer-legal footer-dev">Desenvolvido por <a href="https://sistemaultrion.com.br" target="_blank" rel="noopener noreferrer"><strong>Ultrion</strong></a></p>
     </footer>`;
 }
 
