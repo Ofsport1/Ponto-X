@@ -418,7 +418,7 @@ function productHtml(product) {
 
   // Card sempre com as mesmas "faixas": nome (2 linhas), oferta (1 linha), preço + botão embaixo.
   return `
-    <article class="product ${off ? 'is-off' : ''} ${promo ? 'is-promo' : ''}">
+    <article class="product ${off ? 'is-off' : ''} ${promo ? 'is-promo' : ''}" data-pid="${product.id}">
       <div class="photo">
         ${productPhotoHtml(product)}
         <div class="photo-badges">
@@ -567,6 +567,35 @@ window.addEventListener('scroll', () => {
   heroScrollTicking = true;
   requestAnimationFrame(() => { updateScrollVideo(); heroScrollTicking = false; });
 }, { passive: true });
+
+// Cards de produto entram com fade+subida ao rolar, uma vez por produto (não repete a
+// animação em re-renders causados por +/- do carrinho — só na primeira vez que aquele
+// produto aparece na tela nesta visita). Sempre reconsulta o DOM, então sobrevive à
+// re-renderização de #menu-body a cada clique de +/-.
+const revealedProductIds = new Set();
+let productRevealObserver = null;
+
+function armProductReveal() {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  const cards = document.querySelectorAll('#menu-body .product[data-pid]');
+  if (!cards.length) return;
+
+  productRevealObserver?.disconnect();
+  productRevealObserver = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      revealedProductIds.add(entry.target.dataset.pid);
+      entry.target.classList.add('is-visible');
+      productRevealObserver.unobserve(entry.target);
+    });
+  }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+
+  cards.forEach(card => {
+    if (revealedProductIds.has(card.dataset.pid)) card.classList.add('is-visible');
+    else productRevealObserver.observe(card);
+  });
+}
 
 // Foto pequena de uma linha do carrinho: a da variação (ex.: Red Bull Tradicional), senão a do produto.
 function cartPhotoHtml(product, variant) {
@@ -717,6 +746,11 @@ function menuSections() {
     .sort((a, b) => a.featured_order - b.featured_order);
 
   if (featured.length) sections.push({ title: FEATURED_TITLE, products: featured });
+
+  // Seção sintética (não é uma categoria real do banco): junta quem está com promoção
+  // rolando agora, mesma regra do selo "🔥 Oferta". Some sozinha quando não há promoção ativa.
+  const onPromo = state.products.filter(p => p.available !== false && promoNow(p));
+  if (onPromo.length) sections.push({ title: '🔥 Promoções', products: onPromo });
 
   // Esgotados continuam aparecendo (com "Esgotado"), mas no fim da categoria.
   const inStockFirst = list => [...list.filter(p => p.available !== false), ...list.filter(p => p.available === false)];
@@ -1876,6 +1910,7 @@ function renderMenu() {
 
   document.getElementById('menu-body').innerHTML = menuBodyHtml();
   document.getElementById('cart-slot').innerHTML = cartBarHtml();
+  armProductReveal();
 }
 
 app.addEventListener('click', event => {
