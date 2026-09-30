@@ -551,6 +551,9 @@ alter table products add column if not exists promo_price_cents integer check (p
 alter table products add column if not exists promo_starts_at timestamptz;
 alter table products add column if not exists promo_ends_at timestamptz;
 
+-- Promoção fixa por dia da semana (0=domingo..6=sábado). Vazio/null = vale todo dia, dentro do horário acima.
+alter table products add column if not exists promo_weekdays smallint[];
+
 -- Pedido com a loja fechada: fica aguardando a abertura (só se o dono ligar essa opção).
 alter table stores add column if not exists accept_scheduled boolean not null default false;
 alter table orders add column if not exists scheduled boolean not null default false;

@@ -315,20 +315,44 @@ function headerHtml() {
     </header>`;
 }
 
-function pontoxHeroHtml() {
-  if (!isBurgerStore() || state.search.trim()) return '';
-  const product = state.products.find(p => p.available !== false && p.featured)
-    || state.products.find(p => p.available !== false && /hamb[uú]rg|x-/i.test(p.name));
-  if (!product) return '';
+// Um slide por combo cadastrado (mesmas fotos/preços do cardápio); sem combo, cai no destaque único de sempre.
+function pontoxHeroSlideHtml(product, eyebrow) {
   const action = product.variants.length
     ? `<button class="btn primary" data-choose="${product.id}">Pedir agora</button>`
     : `<button class="btn primary" data-inc="${cartKey(product.id)}">Pedir agora</button>`;
 
-  return `<section class="pontox-hero" aria-label="Destaque da casa">
-    <div class="pontox-hero-copy"><span class="eyebrow">O sabor da casa</span><h2>${escapeHtml(product.name)}</h2>
+  return `<div class="pontox-hero-slide">
+    <div class="pontox-hero-copy"><span class="eyebrow">${escapeHtml(eyebrow)}</span><h2>${escapeHtml(product.name)}</h2>
       ${product.description ? `<p>${escapeHtml(product.description)}</p>` : '<p>Monte seu pedido do seu jeito.</p>'}
       <div class="pontox-hero-bottom"><strong>${productPriceHtml(product)}</strong>${action}</div>
     </div><div class="pontox-hero-photo">${productPhotoHtml(product)}</div>
+  </div>`;
+}
+
+function pontoxHeroHtml() {
+  if (!isBurgerStore() || state.search.trim()) return '';
+
+  const combos = state.products
+    .filter(p => p.available !== false && /combo/i.test(p.category || ''))
+    .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+
+  const slides = combos.length
+    ? combos.map(p => pontoxHeroSlideHtml(p, 'Combo da casa'))
+    : (() => {
+        const product = state.products.find(p => p.available !== false && p.featured)
+          || state.products.find(p => p.available !== false && /hamb[uú]rg|x-/i.test(p.name));
+        return product ? [pontoxHeroSlideHtml(product, 'O sabor da casa')] : [];
+      })();
+
+  if (!slides.length) return '';
+
+  const dots = slides.length > 1
+    ? `<div class="pontox-hero-dots">${slides.map((_, i) => `<button type="button" class="pontox-hero-dot ${i === 0 ? 'on' : ''}" data-hero-dot="${i}" aria-label="Ver destaque ${i + 1}"></button>`).join('')}</div>`
+    : '';
+
+  return `<section class="pontox-hero" aria-label="Destaque da casa">
+    <div class="pontox-hero-track">${slides.join('')}</div>
+    ${dots}
   </section>`;
 }
 
@@ -372,6 +396,7 @@ function productHtml(product) {
 
   const promo = !off && promoNow(product);
   const hot = !off && state.today?.top_products?.includes(product.id);
+  const isNewProduct = !off && isNew(product);
 
   // Card sempre com as mesmas "faixas": nome (2 linhas), oferta (1 linha), preço + botão embaixo.
   return `
@@ -383,6 +408,7 @@ function productHtml(product) {
           ${!off && storeFeatures().chill !== false && product.chill_fee_cents ? '<span class="pbadge cold">❄️ Gelado</span>' : ''}
           ${!off && storeFeatures().weight !== false && product.sold_by_weight ? '<span class="pbadge weight">⚖️ Por kg</span>' : ''}
           ${hot ? '<span class="pbadge hot" title="Muito pedido hoje">🔥 Em alta</span>' : ''}
+          ${isNewProduct ? '<span class="pbadge new">✨ Novidade</span>' : ''}
         </div>
         ${promo ? `<span class="promo-ribbon">-${Math.max(1, Math.round((1 - promo.price_cents / product.price_cents) * 100))}%</span>` : ''}
       </div>
@@ -418,16 +444,33 @@ function dealHtml(product, promo) {
 
 const nowMs = () => Date.now() + (state.timeOffset || 0);
 
+// Dia da semana em São Paulo (0=domingo..6=sábado), mesmo cálculo do worker (nowInSaoPaulo).
+function weekdaySaoPaulo(ms) {
+  const weekday = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Sao_Paulo', weekday: 'short' }).format(new Date(ms));
+  return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(weekday);
+}
+
 function promoNow(product) {
   const p = product.promo;
 
   if (!p || product.variants?.length) return null;
 
   const now = nowMs();
+
+  if (p.weekdays?.length && !p.weekdays.includes(weekdaySaoPaulo(now))) return null;
+
   const starts = p.starts_at ? new Date(p.starts_at).getTime() : null;
   const ends = p.ends_at ? new Date(p.ends_at).getTime() : null;
 
   return (!starts || starts <= now) && (!ends || ends > now) ? p : null;
+}
+
+// Selo "Novidade": produto cadastrado há menos de 14 dias.
+const NEW_PRODUCT_DAYS = 14;
+
+function isNew(product) {
+  if (!product.created_at) return false;
+  return nowMs() - new Date(product.created_at).getTime() < NEW_PRODUCT_DAYS * 24 * 60 * 60 * 1000;
 }
 
 function countdownText(endsAt) {
@@ -454,6 +497,20 @@ setInterval(() => {
 
   promoSignature = signature;
 }, 20000);
+
+// Carrossel de combos na tela inicial: avança sozinho a cada 5s. Um único intervalo global
+// (nunca criado dentro do render) evita duplicar timers a cada atualização da tela.
+setInterval(() => {
+  const track = document.querySelector('.pontox-hero-track');
+  const slides = track?.querySelectorAll('.pontox-hero-slide');
+
+  if (!track || !slides || slides.length < 2) return;
+
+  const width = track.clientWidth;
+  const next = width ? (Math.round(track.scrollLeft / width) + 1) % slides.length : 0;
+  track.scrollTo({ left: next * width, behavior: 'smooth' });
+  document.querySelectorAll('.pontox-hero-dot').forEach((dot, i) => dot.classList.toggle('on', i === next));
+}, 5000);
 
 // Foto pequena de uma linha do carrinho: a da variação (ex.: Red Bull Tradicional), senão a do produto.
 function cartPhotoHtml(product, variant) {
@@ -1642,13 +1699,17 @@ function menuBodyHtml() {
     ? `<nav class="categories">${sections.map(s => `<button data-cat="${escapeHtml(s.title)}">${escapeHtml(s.title)}</button>`).join('')}</nav>`
     : '';
 
-  return nav + pontoxHeroHtml() + sections.map(section => `
-    <section id="cat-${encodeURIComponent(section.title)}" class="${isBurgerStore() && /combo/i.test(section.title) ? 'menu-section-combos' : ''}">
+  return nav + pontoxHeroHtml() + sections.map(section => {
+    const isCombos = isBurgerStore() && /combo/i.test(section.title);
+    const isFeaturedScroll = isBurgerStore() && section.title === FEATURED_TITLE;
+    return `
+    <section id="cat-${encodeURIComponent(section.title)}" class="${isCombos ? 'menu-section-combos' : ''}">
       <h2 class="section-title">${escapeHtml(section.title)}</h2>
-      <div class="products">
+      <div class="products ${isFeaturedScroll ? 'menu-section-scroll' : ''}">
         ${section.products.map(productHtml).join('')}
       </div>
-    </section>`).join('');
+    </section>`;
+  }).join('');
 }
 
 // Junta o carrinho ao pedido que ainda não saiu (o servidor confere o status e recalcula os preços).
@@ -1783,6 +1844,11 @@ app.addEventListener('click', event => {
     openCart();
   } else if (target.id === 'voice-order') {
     startVoiceOrder(target);
+  } else if (target.dataset.heroDot !== undefined) {
+    const track = document.querySelector('.pontox-hero-track');
+    const index = Number(target.dataset.heroDot);
+    if (track) track.scrollTo({ left: index * track.clientWidth, behavior: 'smooth' });
+    document.querySelectorAll('.pontox-hero-dot').forEach((dot, i) => dot.classList.toggle('on', i === index));
   }
 });
 
@@ -2534,6 +2600,17 @@ function saveAccount(account) {
   saveJson(CUSTOMER_KEY, account);
 }
 
+// Restaura o login (nome + WhatsApp) pelo cookie de sessão, mesmo que o localStorage tenha sido limpo.
+async function restoreCustomerSession() {
+  try {
+    const result = await api('/api/customer/session');
+    if (result.logged_in && !loadAccount()) {
+      saveAccount({ customer_name: result.name, customer_phone: result.phone, addresses: [] });
+      renderMenu();
+    }
+  } catch {}
+}
+
 function forgetAccount() {
   try {
     localStorage.removeItem(CUSTOMER_KEY);
@@ -2641,11 +2718,70 @@ function openAccount() {
   const orders = loadJson(ORDERS_KEY, []);
 
   if (!account) {
-    openSheet(`
+    const sheet = openSheet(`
       <div class="sheet-head"><h2>👤 Minha conta</h2><button data-close aria-label="Fechar">✕</button></div>
+      <div class="card" id="login-box">
+        <p class="vip-note">🎉 Entre com seu WhatsApp e garanta: 🎂 presente de aniversário, reconhecimento como cliente fiel e endereço salvo pra pedidos mais rápidos.</p>
+        <p class="muted" style="font-size:12px">Entrar é opcional — você pode pedir sem fazer login.</p>
+        <div class="grid-2">
+          <div class="field"><label for="login-name">Seu nome</label><input id="login-name" maxlength="80" autocomplete="name" placeholder="Seu nome" /></div>
+          <div class="field"><label for="login-phone">WhatsApp (com DDD)</label><input id="login-phone" inputmode="tel" maxlength="20" autocomplete="tel" placeholder="(24) 99999-9999" /></div>
+        </div>
+        <button class="btn small" type="button" id="login-send">Receber código no WhatsApp</button>
+        <div id="login-code-fields" hidden>
+          <label for="login-code">Código recebido (válido por 5 minutos)</label>
+          <input id="login-code" inputmode="numeric" autocomplete="one-time-code" maxlength="4" placeholder="0000" />
+          <button class="btn small" type="button" id="login-verify">Confirmar código</button>
+        </div>
+        <p id="login-message" role="status" aria-live="polite"></p>
+      </div>
       <p>Você ainda não fez nenhum pedido neste aparelho.</p>
       <p class="muted">No seu primeiro pedido, seu nome, WhatsApp e endereço ficam salvos aqui. Nos próximos, é só escolher e enviar. 😉</p>
       <button class="btn primary block" data-close>Ver cardápio</button>`);
+
+    let loginChallenge = null;
+    let loginCodePhone = null;
+    const loginMessage = sheet.querySelector('#login-message');
+    const loginSend = sheet.querySelector('#login-send');
+    const loginVerify = sheet.querySelector('#login-verify');
+
+    loginSend.addEventListener('click', async () => {
+      const name = sheet.querySelector('#login-name').value.trim();
+      const phone = sheet.querySelector('#login-phone').value.replace(/\D/g, '');
+      if (!name) { loginMessage.textContent = 'Digite seu nome.'; return; }
+      if (phone.length < 10) { loginMessage.textContent = 'Digite o WhatsApp com DDD.'; return; }
+      loginSend.disabled = true;
+      loginMessage.textContent = 'Enviando código…';
+      try {
+        const result = await api('/api/customer/send-code', { method: 'POST', body: JSON.stringify({ name, phone }) });
+        loginChallenge = result.challenge;
+        loginCodePhone = phone;
+        sheet.querySelector('#login-code-fields').hidden = false;
+        sheet.querySelector('#login-code').value = '';
+        sheet.querySelector('#login-code').focus();
+        loginMessage.textContent = 'Código enviado. Confira seu WhatsApp.';
+      } catch (err) { loginMessage.textContent = err.message; }
+      finally { loginSend.disabled = false; }
+    });
+
+    loginVerify.addEventListener('click', async () => {
+      const name = sheet.querySelector('#login-name').value.trim();
+      const phone = sheet.querySelector('#login-phone').value.replace(/\D/g, '');
+      const code = sheet.querySelector('#login-code').value.trim();
+      if (!/^\d{4}$/.test(code)) { loginMessage.textContent = 'Digite os 4 dígitos recebidos.'; return; }
+      if (!loginChallenge || phone !== loginCodePhone) { loginMessage.textContent = 'Solicite um código para este número.'; return; }
+      loginVerify.disabled = true;
+      try {
+        await api('/api/customer/verify-code', { method: 'POST', body: JSON.stringify({ phone, code, challenge: loginChallenge }) });
+        loginChallenge = null;
+        saveAccount({ customer_name: name, customer_phone: phone, addresses: [] });
+        closeSheet();
+        renderMenu();
+        openAccount();
+        toast('Login feito! Seus dados já ficam salvos para o próximo pedido.');
+      } catch (err) { loginMessage.textContent = err.message; }
+      finally { loginVerify.disabled = false; }
+    });
     return;
   }
 
@@ -3679,6 +3815,7 @@ async function start() {
 
   loadInsights();
   loadRecommendations();
+  if (!loadAccount()) restoreCustomerSession();
 
   if (orderId) {
     showOrder(orderId);

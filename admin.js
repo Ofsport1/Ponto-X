@@ -1437,11 +1437,18 @@ function readComponentRows(form) {
   return components;
 }
 
+// Dia da semana em São Paulo (0=domingo..6=sábado), mesmo cálculo do worker (nowInSaoPaulo).
+function weekdaySaoPaulo(ms) {
+  const weekday = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Sao_Paulo', weekday: 'short' }).format(new Date(ms));
+  return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(weekday);
+}
+
 // Preço promocional valendo agora (mesma regra do servidor); null = sem promoção.
 function promoPriceNow(product) {
   const now = Date.now();
 
   if (product.promo_price_cents == null || product.variants?.length || product.promo_price_cents >= product.price_cents) return null;
+  if (product.promo_weekdays?.length && !product.promo_weekdays.includes(weekdaySaoPaulo(now))) return null;
   if (product.promo_starts_at && new Date(product.promo_starts_at).getTime() > now) return null;
   if (product.promo_ends_at && new Date(product.promo_ends_at).getTime() <= now) return null;
 
@@ -1489,6 +1496,14 @@ function productFormHtml() {
           <div class="field"><label>Termina (vazio = até tirar)</label><input name="promo_ends" type="datetime-local" value="${toLocalInput(product.promo_ends_at)}" /></div>
         </div>
         <p class="muted" style="font-size:12px;margin-top:-6px">Com horário de término, o cardápio mostra "Termina em X min" e a oferta some sozinha quando acabar.</p>
+        <div class="field">
+          <label>Dias da semana (nenhum marcado = todo dia, dentro do horário acima)</label>
+          <div class="weekday-checks">
+            ${['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((label, day) => `
+              <label class="check"><input type="checkbox" name="promo_weekday" value="${day}" ${product.promo_weekdays?.includes(day) ? 'checked' : ''} /> ${label}</label>
+            `).join('')}
+          </div>
+        </div>
       </div>
       ${storeFeatures().chill !== false ? `<div class="field"><label>🧊 Engradado gelado: + R$ por engradado (vazio = sem a opção)</label><input name="chill_fee" inputmode="decimal" placeholder="Ex.: 5,00" value="${product.chill_fee_cents != null ? centsToInput(product.chill_fee_cents) : ''}" /></div>` : ''}
       <div class="grid-2" id="simple-fields" ${variants.length ? 'hidden' : ''}>
@@ -1907,10 +1922,11 @@ async function submitProductForm(form) {
     variants,
     ...(components ? { components } : {}),
     chill_fee_cents: optionalCents(form.chill_fee?.value || '') ?? null,
-    ...(variants.length ? { promo_price_cents: null } : {
+    ...(variants.length ? { promo_price_cents: null, promo_weekdays: null } : {
       promo_price_cents: optionalCents(form.promo_price.value) ?? null,
       promo_starts_at: fromLocalInput(form.promo_starts.value),
       promo_ends_at: fromLocalInput(form.promo_ends.value),
+      promo_weekdays: [...form.querySelectorAll('input[name="promo_weekday"]:checked')].map(el => Number(el.value)),
     }),
     ...(variants.length
       ? { bulk_qty: null, bulk_price_cents: null }

@@ -635,17 +635,26 @@ function paymentParts(order) {
 
 /* ---------------- Público ---------------- */
 
-// Promoção com horário (só em produto sem variações). Ativa = preço menor que o normal e dentro do horário.
+// Promoção com horário (só em produto sem variações). Ativa = preço menor que o normal, dentro do horário
+// e, se houver dias da semana marcados, só nesses dias (fuso de São Paulo).
 // Devolve também a promoção que ainda vai começar hoje, para o cardápio trocar sozinho na hora certa.
 function promoFor(p, now = Date.now()) {
   if (p.promo_price_cents == null || p.variants?.length || p.promo_price_cents >= p.price_cents) return null;
+
+  if (p.promo_weekdays?.length && !p.promo_weekdays.includes(nowInSaoPaulo(new Date(now)).day)) return null;
 
   const starts = p.promo_starts_at ? new Date(p.promo_starts_at).getTime() : null;
   const ends = p.promo_ends_at ? new Date(p.promo_ends_at).getTime() : null;
 
   if (ends && ends <= now) return null;
 
-  return { price_cents: p.promo_price_cents, starts_at: p.promo_starts_at, ends_at: p.promo_ends_at, active: !starts || starts <= now };
+  return {
+    price_cents: p.promo_price_cents,
+    starts_at: p.promo_starts_at,
+    ends_at: p.promo_ends_at,
+    weekdays: p.promo_weekdays?.length ? p.promo_weekdays : null,
+    active: !starts || starts <= now,
+  };
 }
 
 function unitPriceNow(product, variant, now = Date.now()) {
@@ -959,7 +968,7 @@ async function handleMenu(request, env) {
   const [response, today] = await Promise.all([
     supabaseFetch(
       env,
-      `products?select=id,name,description,category,price_cents,bulk_qty,bulk_price_cents,chill_fee_cents,promo_price_cents,promo_starts_at,promo_ends_at,image_url,featured,featured_order,suggest,available,sold_by_weight,kg_price_cents,product_variants(id,name,price_cents,bulk_qty,bulk_price_cents,available,sort_order,image_url)&store_id=eq.${store.id}&order=sort_order.asc,name.asc`
+      `products?select=id,name,description,category,price_cents,bulk_qty,bulk_price_cents,chill_fee_cents,promo_price_cents,promo_starts_at,promo_ends_at,promo_weekdays,created_at,image_url,featured,featured_order,suggest,available,sold_by_weight,kg_price_cents,product_variants(id,name,price_cents,bulk_qty,bulk_price_cents,available,sort_order,image_url)&store_id=eq.${store.id}&order=sort_order.asc,name.asc`
     ),
     todayStats(env, store).catch(() => null),
   ]);
@@ -970,7 +979,7 @@ async function handleMenu(request, env) {
   const now = Date.now();
   const products = [];
 
-  for (const { product_variants: allVariants, promo_price_cents, promo_starts_at, promo_ends_at, ...product } of rows) {
+  for (const { product_variants: allVariants, promo_price_cents, promo_starts_at, promo_ends_at, promo_weekdays, ...product } of rows) {
     if (hidden.has(normalizeName(product.category))) continue;
     const variants = sortVariants(allVariants)
       .map(({ id, name, price_cents, bulk_qty, bulk_price_cents, available, image_url }) => ({ id, name, price_cents, bulk_qty, bulk_price_cents, available, image_url }));
@@ -980,7 +989,7 @@ async function handleMenu(request, env) {
 
     if (!available) continue;
 
-    const promo = promoFor({ promo_price_cents, promo_starts_at, promo_ends_at, price_cents: product.price_cents, variants }, now);
+    const promo = promoFor({ promo_price_cents, promo_starts_at, promo_ends_at, promo_weekdays, price_cents: product.price_cents, variants }, now);
 
     products.push({ ...product, available, variants, promo });
   }
@@ -1134,6 +1143,84 @@ async function handleVipCodeVerify(request, env) {
   if (!(await vipAttempt(env, `used:${challenge.id}`, 1, 10))) return json({ error: 'Este código já foi utilizado. Solicite outro.' }, 409);
   const token = await vipToken(env, { purpose: 'vip-session', phone: challenge.phone, store_id: store.id, exp: Math.floor(Date.now() / 1000) + VIP_SESSION_SECONDS });
   return json({ ok: true }, 200, { 'Set-Cookie': `${VIP_COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${VIP_SESSION_SECONDS}` });
+}
+
+// Login opcional do cliente (nome + WhatsApp) — mesmo mecanismo do VIP acima (challenge/sessão
+// assinados por HMAC, sem gravar código em texto puro, mesmo limite de tentativas via login_attempt
+// e mesmo waService), mas sem exigir cadastro VIP e com cookie de sessão independente. Nunca é
+// obrigatório para pedir; fica pronto e inerte até o WhatsApp automático desta loja ser configurado
+// (mesma limitação de handleVipCodeSend).
+const CUSTOMER_COOKIE = '__Host-pontox-customer';
+const CUSTOMER_SESSION_SECONDS = 90 * 86400;
+
+async function customerLoginAttempt(env, key, max, minutes) {
+  const response = await supabaseFetch(env, 'rpc/login_attempt', {
+    method: 'POST',
+    body: JSON.stringify({ p_key: `customer-login:${key}`, p_max: max, p_lock_minutes: minutes, p_window_minutes: minutes }),
+  });
+  // Falha fechada: indisponibilidade do contador nunca autoriza um código.
+  if (!response.ok) throw new Error('Não foi possível conferir o código agora. Tente novamente mais tarde.');
+  return (await response.json()) === true;
+}
+
+async function handleCustomerLoginSend(request, env) {
+  const body = await request.json().catch(() => ({}));
+  const name = cleanText(body.name, 80);
+  const phone = normalizePhone(body.phone);
+  if (!name) return json({ error: 'Informe seu nome.' }, 400);
+  if (!/^\d{10,11}$/.test(phone)) return json({ error: 'Informe o WhatsApp com DDD.' }, 400);
+  const isTest = env.SUPABASE_URL === 'https://baarxygrjpirsizvpzlu.supabase.co';
+  const serviceUrl = env.VIP_WHATSAPP_URL || (!isTest && env.WA_SERVICE_URL);
+  const serviceToken = env.VIP_WHATSAPP_TOKEN || (!isTest && env.WA_SERVICE_TOKEN);
+  if (!serviceUrl || !serviceToken) return json({ error: 'O login por WhatsApp ainda não está disponível. Você pode fazer seu pedido sem entrar na conta.' }, 503);
+  if (isTest && phone !== normalizePhone(env.VIP_TEST_PHONE || '')) return json({ error: 'Nesta versão teste, o envio está liberado apenas para o número de teste autorizado.' }, 403);
+  const ip = await sign(request.headers.get('CF-Connecting-IP') || 'local', env.SESSION_SECRET);
+  if (!(await customerLoginAttempt(env, `send-ip:${ip}`, 10, 60)) ||
+      !(await customerLoginAttempt(env, `send-phone:${phone}`, 3, 60)) ||
+      !(await customerLoginAttempt(env, `send-cooldown:${phone}`, 1, 1))) {
+    return json({ error: 'Aguarde antes de pedir outro código. Limite de três envios por hora.' }, 429);
+  }
+  const store = await getStore(env);
+  const random = new Uint32Array(1);
+  do { crypto.getRandomValues(random); } while (random[0] >= 4294960000);
+  const code = String(random[0] % 10000).padStart(4, '0');
+  const id = crypto.randomUUID();
+  const digest = await sign(`customer-code:${id}:${phone}:${code}`, env.SESSION_SECRET);
+  const challenge = await vipToken(env, { purpose: 'customer-code', id, phone, name, store_id: store.id, digest, exp: Math.floor(Date.now() / 1000) + VIP_CODE_SECONDS });
+  try {
+    const response = await fetch(`${String(serviceUrl).replace(/\/$/, '')}/test`, {
+      method: 'POST', headers: { Authorization: `Bearer ${serviceToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, text: `${isTest ? '[TESTE] ' : ''}${store.name}: seu código para entrar na conta é ${code}. Válido por 5 minutos. Não compartilhe este código. Se não foi você, ignore esta mensagem.` }),
+      signal: AbortSignal.timeout(15000),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || result.ok !== true) throw new Error('send failed');
+  } catch {
+    return json({ error: 'Não conseguimos enviar o código. Tente mais tarde ou continue sem entrar na conta.' }, 503);
+  }
+  return json({ ok: true, challenge, expires_in: VIP_CODE_SECONDS });
+}
+
+async function handleCustomerLoginVerify(request, env) {
+  const body = await request.json().catch(() => ({}));
+  const store = await getStore(env);
+  const challenge = await readVipToken(env, body.challenge, 'customer-code');
+  if (!challenge || challenge.store_id !== store.id || challenge.phone !== normalizePhone(body.phone)) return json({ error: 'Código expirado ou inválido. Solicite outro.' }, 400);
+  if (!(await customerLoginAttempt(env, `verify:${challenge.id}`, 5, 10))) return json({ error: 'Limite de tentativas atingido. Solicite outro código.' }, 429);
+  const code = String(body.code || '');
+  const digest = await sign(`customer-code:${challenge.id}:${challenge.phone}:${code}`, env.SESSION_SECRET);
+  if (!/^\d{4}$/.test(code) || !(await safeEqual(digest, challenge.digest, env.SESSION_SECRET))) return json({ error: 'Código incorreto.' }, 400);
+  if (!(await customerLoginAttempt(env, `used:${challenge.id}`, 1, 10))) return json({ error: 'Este código já foi utilizado. Solicite outro.' }, 409);
+  await upsertCustomer(env, store.id, { phone: challenge.phone, name: challenge.name });
+  const token = await vipToken(env, { purpose: 'customer-session', phone: challenge.phone, name: challenge.name, store_id: store.id, exp: Math.floor(Date.now() / 1000) + CUSTOMER_SESSION_SECONDS });
+  return json({ ok: true, name: challenge.name }, 200, { 'Set-Cookie': `${CUSTOMER_COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${CUSTOMER_SESSION_SECONDS}` });
+}
+
+async function handleCustomerSession(request, env) {
+  const store = await getStore(env);
+  const session = await readVipToken(env, getCookie(request, CUSTOMER_COOKIE), 'customer-session');
+  if (!session || session.store_id !== store.id) return json({ logged_in: false });
+  return json({ logged_in: true, name: session.name, phone: session.phone });
 }
 
 async function handleCustomerLookup(request, env) {
@@ -1566,7 +1653,7 @@ async function priceCartItems(env, store, rawList, fromAdmin) {
   const ids = [...new Set([...quantities.values()].map(q => q.productId))].join(',');
   const productsResponse = await supabaseFetch(
     env,
-    `products?select=id,name,category,price_cents,bulk_qty,bulk_price_cents,cost_cents,chill_fee_cents,promo_price_cents,promo_starts_at,promo_ends_at,available,inactive_reason,sold_by_weight,product_variants(id,name,price_cents,bulk_qty,bulk_price_cents,cost_cents,available)&store_id=eq.${store.id}&id=in.(${ids})`
+    `products?select=id,name,category,price_cents,bulk_qty,bulk_price_cents,cost_cents,chill_fee_cents,promo_price_cents,promo_starts_at,promo_ends_at,promo_weekdays,available,inactive_reason,sold_by_weight,product_variants(id,name,price_cents,bulk_qty,bulk_price_cents,cost_cents,available)&store_id=eq.${store.id}&id=in.(${ids})`
   );
   const products = await readJsonResponse(productsResponse, 'Não foi possível validar os produtos.');
 
@@ -2219,7 +2306,7 @@ function pickFields(value, fields) {
 
 function productForRole(product, session) {
   if (session?.urole === 'admin') return product;
-  const fields = 'id,name,description,category,price_cents,bulk_qty,bulk_price_cents,chill_fee_cents,promo_price_cents,promo_starts_at,promo_ends_at,image_url,available,inactive_reason,inactive_since,featured,featured_order,suggest,sort_order,sold_by_weight,kg_price_cents';
+  const fields = 'id,name,description,category,price_cents,bulk_qty,bulk_price_cents,chill_fee_cents,promo_price_cents,promo_starts_at,promo_ends_at,promo_weekdays,created_at,image_url,available,inactive_reason,inactive_since,featured,featured_order,suggest,sort_order,sold_by_weight,kg_price_cents';
   return { ...pickFields(product, fields), variants: (product.variants || []).map(v => pickFields(v, fields)) };
 }
 
@@ -2974,6 +3061,17 @@ function readProductFields(body, partial) {
     fields.promo_price_cents = price;
     fields.promo_starts_at = price === null ? null : starts?.toISOString() || null;
     fields.promo_ends_at = price === null ? null : ends?.toISOString() || null;
+  }
+
+  // Promoção fixa por dia da semana (0=domingo..6=sábado); vazio/null = todo dia.
+  if (body.promo_weekdays !== undefined) {
+    if (body.promo_weekdays === null || body.promo_weekdays === '') {
+      fields.promo_weekdays = null;
+    } else if (Array.isArray(body.promo_weekdays) && body.promo_weekdays.every(d => Number.isInteger(d) && d >= 0 && d <= 6)) {
+      fields.promo_weekdays = body.promo_weekdays.length ? [...new Set(body.promo_weekdays)].sort() : null;
+    } else {
+      return { error: 'Dias da promoção inválidos.' };
+    }
   }
 
   // Engradado gelado: valor a mais por engradado (vazio = sem a opção).
@@ -5867,6 +5965,9 @@ export default {
 
       if (path === '/api/vip/send-code' && method === 'POST') return await handleVipCodeSend(request, env);
       if (path === '/api/vip/verify-code' && method === 'POST') return await handleVipCodeVerify(request, env);
+      if (path === '/api/customer/send-code' && method === 'POST') return await handleCustomerLoginSend(request, env);
+      if (path === '/api/customer/verify-code' && method === 'POST') return await handleCustomerLoginVerify(request, env);
+      if (path === '/api/customer/session' && method === 'GET') return await handleCustomerSession(request, env);
 
       if (path === '/api/customer-insights' && method === 'POST') {
         return await handleCustomerInsights(request, env);
