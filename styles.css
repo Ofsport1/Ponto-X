@@ -463,41 +463,106 @@ code { background: var(--card-2); padding: 1px 5px; border-radius: 5px; font-siz
 :root[data-store="pontox"] .categories button.active { background: var(--px-red); border-color: var(--px-red); color: #fff; }
 :root[data-store="pontox"] .section-title { color: var(--px-cream); font-size: 21px; letter-spacing: -.02em; }
 :root[data-store="pontox"] section[id^="cat-"] { scroll-margin-top: 132px; }
-/* Grade principal: a foto ocupa o retângulo inteiro do card (poster), com nome/preço/botão
-   sobrepostos embaixo, sobre um gradiente escuro (legibilidade) + sombra no texto. */
-:root[data-store="pontox"] #menu-body .product { display: block; overflow: visible; position: relative; padding: 0; border-color: var(--px-line); background: var(--px-surface); border-radius: 22px; box-shadow: 0 8px 22px rgba(0,0,0,.2); transition: transform .25s ease, box-shadow .25s ease, border-color .18s ease, opacity .5s ease; opacity: 0; transform: translateY(18px); cursor: pointer; aspect-ratio: 4 / 5; }
-:root[data-store="pontox"] #menu-body .product.is-visible { opacity: 1; transform: translateY(0); }
-:root[data-store="pontox"] #menu-body .product:active { transform: scale(.985); }
-/* Brilho discreto vermelho/dourado atrás do card — sempre presente, um pouco mais forte no hover. */
-:root[data-store="pontox"] #menu-body .product::before { content: ''; position: absolute; inset: -14px; z-index: -1; border-radius: 30px; background: radial-gradient(circle at 25% 15%, rgba(229,45,56,.22), transparent 60%), radial-gradient(circle at 80% 85%, rgba(244,189,66,.16), transparent 55%); filter: blur(20px); opacity: .35; transition: opacity .3s ease; }
-:root[data-store="pontox"] #menu-body .product:hover::before { opacity: .6; }
-:root[data-store="pontox"] #menu-body .product .photo { position: absolute; inset: 0; width: 100%; height: 100%; overflow: hidden; border-radius: 22px; }
-:root[data-store="pontox"] #menu-body .product img, :root[data-store="pontox"] #menu-body .product .no-photo { width: 100%; height: 100%; border-radius: 0; background: var(--px-surface-2); object-fit: cover; transition: transform .4s ease; }
-:root[data-store="pontox"] #menu-body .product .no-photo { color: var(--px-gold); font-size: 40px; }
-:root[data-store="pontox"] #menu-body .product .photo-badges { top: 12px; bottom: auto; left: 12px; right: 12px; z-index: 1; }
-@media (hover: hover) {
-  :root[data-store="pontox"] #menu-body .product:hover { transform: translateY(-6px); box-shadow: 0 16px 34px rgba(0,0,0,.32); }
-  :root[data-store="pontox"] #menu-body .product:hover img { transform: scale(1.05); }
+/* Catálogo Ponto X: foto limpa no topo, informações em uma área própria abaixo.
+   O card não usa mais o modelo de pôster/gradiente: no celular a leitura fica rápida e
+   nenhum texto ou ação esconde o hambúrguer. */
+:root[data-store="pontox"] #menu-body .product {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  padding: 0;
+  border: 1px solid var(--px-line);
+  background: var(--px-surface);
+  border-radius: 18px;
+  box-shadow: 0 5px 16px rgba(0,0,0,.16);
+  transition: transform .2s ease, box-shadow .2s ease, border-color .18s ease, opacity .5s ease;
+  opacity: 0;
+  transform: translateY(18px);
+  cursor: pointer;
 }
-/* Painel de informações sobreposto na foto: gradiente escuro de baixo pra cima (o padding-top
-   grande é a "zona" do degradê, mesmo com pouco texto) + sombra no texto para garantir leitura
-   em cima de qualquer foto, clara ou escura. */
-:root[data-store="pontox"] #menu-body .product .info { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; padding: 56px 18px 18px; background: linear-gradient(to top, rgba(0,0,0,.92) 0%, rgba(0,0,0,.78) 45%, rgba(0,0,0,.32) 78%, transparent 100%); border-radius: 0 0 22px 22px; }
-:root[data-store="pontox"] #menu-body .product h3 { min-height: 0; color: var(--px-cream); font-size: 19px; text-shadow: 0 2px 10px rgba(0,0,0,.9); }
-:root[data-store="pontox"] #menu-body .product p { color: #cbbbbb; text-shadow: 0 1px 6px rgba(0,0,0,.9); }
-:root[data-store="pontox"] #menu-body .product .description { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 13px; }
-:root[data-store="pontox"] #menu-body .product .bottom { gap: 10px; flex-direction: column; align-items: stretch; }
-:root[data-store="pontox"] #menu-body .product .btn { width: 100%; }
-:root[data-store="pontox"] .price { color: var(--px-gold); font-size: 19px; }
-:root[data-store="pontox"] #menu-body .product .price { text-shadow: 0 2px 10px rgba(0,0,0,.9); }
-:root[data-store="pontox"] .product .btn.primary, :root[data-store="pontox"] .cart-bar .btn.primary { background: var(--px-red); border-color: var(--px-red); color: #fff; min-height: 42px; }
-:root[data-store="pontox"] .product .qty button { min-width: 34px; min-height: 34px; background: rgba(229,45,56,.14); border-color: rgba(229,45,56,.45); color: #ff858b; }
-:root[data-store="pontox"] #menu-body .product.is-promo { border-color: var(--px-gold); animation: none; }
-/* Vitrine cinematográfica: cards no mesmo estilo "poster" da grade principal (foto cheia,
-   texto sobreposto) — só que em trilha horizontal. --sh-per-view (2 no celular, 3 no desktop
-   médio, 4 em telas largas) garante N cards + (N-1) vãos = 100% do contêiner, sem nenhum
-   card cortado na borda. Destaque central, parallax da foto e a entrada de cada card vêm do
-   GSAP (armProductShowcases em app.js); aqui só o essencial pro baseline sem JS funcionar. */
+:root[data-store="pontox"] #menu-body .product.is-visible { opacity: 1; transform: translateY(0); }
+:root[data-store="pontox"] #menu-body .product:active { transform: scale(.99); }
+:root[data-store="pontox"] #menu-body .product::before { display: none; }
+:root[data-store="pontox"] #menu-body .product .photo {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  flex: none;
+  overflow: hidden;
+  border-radius: 0;
+  background: var(--px-surface-2);
+}
+:root[data-store="pontox"] #menu-body .product img,
+:root[data-store="pontox"] #menu-body .product .no-photo {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  background: var(--px-surface-2);
+  object-fit: cover;
+  transition: transform .3s ease;
+}
+:root[data-store="pontox"] #menu-body .product .no-photo { color: var(--px-gold); font-size: 40px; }
+:root[data-store="pontox"] #menu-body .product .photo-badges { top: 10px; bottom: auto; left: 10px; right: 10px; z-index: 1; }
+@media (hover: hover) {
+  :root[data-store="pontox"] #menu-body .product:hover { transform: translateY(-3px); box-shadow: 0 9px 22px rgba(0,0,0,.24); }
+  :root[data-store="pontox"] #menu-body .product:hover img { transform: scale(1.02); }
+}
+:root[data-store="pontox"] #menu-body .product .info {
+  position: static;
+  z-index: auto;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  padding: 13px 14px 14px;
+  background: var(--px-surface);
+  border-radius: 0;
+}
+:root[data-store="pontox"] #menu-body .product h3 {
+  min-height: 0;
+  margin: 0;
+  color: var(--px-cream);
+  font-size: 16px;
+  line-height: 1.25;
+  text-shadow: none;
+}
+:root[data-store="pontox"] #menu-body .product p {
+  color: #cbbbbb;
+  text-shadow: none;
+}
+:root[data-store="pontox"] #menu-body .product .description {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-top: 5px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+:root[data-store="pontox"] #menu-body .product .deal-row { min-height: 0; margin-top: 7px; }
+:root[data-store="pontox"] #menu-body .product .bottom {
+  gap: 10px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+  padding-top: 0;
+}
+:root[data-store="pontox"] #menu-body .product .btn {
+  width: auto;
+  min-height: 34px;
+  padding: 7px 13px;
+  font-size: 12px;
+}
+:root[data-store="pontox"] .price { color: var(--px-gold); font-size: 18px; }
+:root[data-store="pontox"] #menu-body .product .price { text-shadow: none; }
+:root[data-store="pontox"] .product .btn.primary, :root[data-store="pontox"] .cart-bar .btn.primary { background: var(--px-red); border-color: var(--px-red); color: #fff; min-height: 38px; }
+:root[data-store="pontox"] .product .qty button { min-width: 32px; min-height: 32px; background: rgba(229,45,56,.14); border-color: rgba(229,45,56,.45); color: #ff858b; }
+:root[data-store="pontox"] #menu-body .product.is-promo { border-color: rgba(244,189,66,.72); animation: none; }
+/* Vitrine horizontal: mantém scroll-snap/GSAP, mas usa o mesmo card separado em duas áreas. */
 :root[data-store="pontox"] #menu-body .menu-section-scroll {
   --sh-gap: 14px;
   --sh-per-view: 2;
@@ -534,8 +599,8 @@ code { background: var(--card-2); padding: 1px 5px; border-radius: 5px; font-siz
   background: none;
 }
 :root[data-store="pontox"] #menu-body .menu-section-scroll .product .description {
-  font-size: 11px;
-  -webkit-line-clamp: 1;
+  font-size: 12px;
+  -webkit-line-clamp: 2;
 }
 :root[data-store="pontox"] #menu-body .menu-section-scroll .product .price {
   font-size: 15px;
@@ -583,8 +648,6 @@ code { background: var(--card-2); padding: 1px 5px; border-radius: 5px; font-siz
 :root[data-store="pontox"] #menu-body .products:not(.menu-section-scroll) { grid-template-columns: 1fr; gap: 20px; }
 @media (min-width: 860px) {
   :root[data-store="pontox"] #menu-body .products:not(.menu-section-scroll) { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 26px; }
-  /* Cards mais largos no 2 colunas: proporção mais "paisagem" para não ficar exageradamente alto. */
-  :root[data-store="pontox"] #menu-body .products:not(.menu-section-scroll) .product { aspect-ratio: 3 / 2; }
   :root[data-store="pontox"] #menu-body .product .bottom { flex-direction: row; align-items: center; justify-content: space-between; }
   :root[data-store="pontox"] #menu-body .product .btn { width: auto; }
 }
@@ -592,6 +655,7 @@ code { background: var(--card-2); padding: 1px 5px; border-radius: 5px; font-siz
   :root[data-store="pontox"] .product { transition: none; }
   :root[data-store="pontox"] #menu-body .product { opacity: 1 !important; transform: none !important; }
   :root[data-store="pontox"] #menu-body .product::before { display: none; }
+  :root[data-store="pontox"] #menu-body .product:hover { transform: none; box-shadow: 0 5px 16px rgba(0,0,0,.16); }
   :root[data-store="pontox"] .categories { scroll-behavior: auto; }
   /* Vitrine cinematográfica: sem pin/scrub/parallax/tilt — só a navegação simples por
      scroll-snap continua (o próprio armProductShowcases em app.js já não arma nada aqui). */
