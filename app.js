@@ -356,6 +356,24 @@ function pontoxHeroHtml() {
   </section>`;
 }
 
+// Vídeo que "monta" o hambúrguer conforme a pessoa rola a tela (substitui o carrossel de
+// combos por enquanto; ele continua definido acima, só não é chamado daqui).
+function pontoxScrollVideoHeroHtml() {
+  if (!isBurgerStore() || state.search.trim()) return '';
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return ''; // sem efeito de movimento
+
+  return `<section class="pontox-scroll-hero" aria-label="Como montamos seu hambúrguer">
+    <div class="pontox-scroll-hero-sticky">
+      <video class="pontox-scroll-video" data-src="assets/burger-assembly.mp4" muted playsinline preload="none"></video>
+      <div class="pontox-scroll-hero-copy">
+        <span class="eyebrow">Direto da chapa</span>
+        <h2>Seu hambúrguer, montado na hora</h2>
+        <button type="button" class="btn small" data-skip-hero>Ver cardápio ↓</button>
+      </div>
+    </div>
+  </section>`;
+}
+
 function productPhotoHtml(product) {
   return product.image_url
     ? `<img src="${escapeHtml(product.image_url)}" alt="" loading="lazy" />`
@@ -512,6 +530,43 @@ setInterval(() => {
   track.scrollTo({ left: next * width, behavior: 'smooth' });
   document.querySelectorAll('.pontox-hero-dot').forEach((dot, i) => dot.classList.toggle('on', i === next));
 }, 5000);
+
+// Vídeo-scroll do topo: carrega só quando chega perto (economiza dados de quem nem rola
+// até lá) e avança junto com o scroll (sem tocar/som). Sempre reconsulta o DOM a cada passo
+// (como o autoplay do carrossel acima), então sobrevive a re-renderizações do #menu-body.
+let scrollVideoObserver = null;
+
+function armScrollVideo() {
+  const video = document.querySelector('.pontox-scroll-video');
+  if (!video || video.dataset.armed) return;
+  video.dataset.armed = '1';
+  scrollVideoObserver?.disconnect();
+  scrollVideoObserver = new IntersectionObserver(entries => {
+    if (!entries.some(e => e.isIntersecting)) return;
+    video.src = video.dataset.src;
+    video.load();
+    scrollVideoObserver.disconnect();
+  }, { rootMargin: '600px 0px' });
+  scrollVideoObserver.observe(video);
+}
+
+let heroScrollTicking = false;
+function updateScrollVideo() {
+  const section = document.querySelector('.pontox-scroll-hero');
+  const video = document.querySelector('.pontox-scroll-video');
+  if (!section || !video || !video.duration) return;
+  const rect = section.getBoundingClientRect();
+  const total = rect.height - window.innerHeight;
+  const progress = total > 0 ? Math.min(1, Math.max(0, -rect.top / total)) : 0;
+  video.currentTime = progress * video.duration;
+}
+
+window.addEventListener('scroll', () => {
+  armScrollVideo();
+  if (heroScrollTicking) return;
+  heroScrollTicking = true;
+  requestAnimationFrame(() => { updateScrollVideo(); heroScrollTicking = false; });
+}, { passive: true });
 
 // Foto pequena de uma linha do carrinho: a da variação (ex.: Red Bull Tradicional), senão a do produto.
 function cartPhotoHtml(product, variant) {
@@ -1735,7 +1790,7 @@ function menuBodyHtml() {
     ? `<nav class="categories">${sections.map(s => `<button data-cat="${escapeHtml(s.title)}">${escapeHtml(s.title)}</button>`).join('')}</nav>`
     : '';
 
-  return nav + pontoxHeroHtml() + sections.map(section => {
+  return nav + pontoxScrollVideoHeroHtml() + sections.map(section => {
     const isCombos = isBurgerStore() && /combo/i.test(section.title);
     const isFeaturedScroll = isBurgerStore() && section.title === FEATURED_TITLE;
     return `
@@ -1850,6 +1905,8 @@ app.addEventListener('click', event => {
   } else if (target.dataset.cat) {
     document.getElementById(`cat-${encodeURIComponent(target.dataset.cat)}`)
       ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } else if (target.dataset.skipHero !== undefined) {
+    document.getElementById('menu-body')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } else if (target.dataset.reorder) {
     reorder(target.dataset.reorder, target);
   } else if (target.dataset.bulk) {
