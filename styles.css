@@ -485,6 +485,31 @@ code { background: var(--card-2); padding: 1px 5px; border-radius: 5px; font-siz
 :root[data-store="pontox"] #menu-body .menu-section-scroll .product .photo .no-photo {
   transition: none; /* parallax/zoom da imagem é só GSAP (yPercent/scale) */
 }
+/* Na vitrine, a foto é a protagonista: painel de texto mais baixo (mais foto à mostra),
+   descrição/preço menores e botão "Adicionar" pequeno (não ocupa a base inteira como na
+   grade principal) — em qualquer tamanho de tela. */
+:root[data-store="pontox"] #menu-body .menu-section-scroll .product .info {
+  padding: 22px 12px 12px;
+}
+:root[data-store="pontox"] #menu-body .menu-section-scroll .product .description {
+  font-size: 11px;
+  -webkit-line-clamp: 1;
+}
+:root[data-store="pontox"] #menu-body .menu-section-scroll .product .price {
+  font-size: 15px;
+}
+:root[data-store="pontox"] #menu-body .menu-section-scroll .product .bottom {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+:root[data-store="pontox"] #menu-body .menu-section-scroll .product .btn {
+  width: auto;
+  min-height: 34px;
+  padding: 6px 14px;
+  font-size: 13px;
+}
 @media (min-width: 860px) and (max-width: 1179.98px) {
   :root[data-store="pontox"] #menu-body .menu-section-scroll { --sh-per-view: 3; }
 }
