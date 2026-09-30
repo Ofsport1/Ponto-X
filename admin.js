@@ -717,6 +717,12 @@ app.addEventListener('change', event => {
     thumb.firstElementChild.outerHTML = `<img src="${URL.createObjectURL(event.target.files[0])}" alt="" />`;
     return;
   }
+  // Foto do produto escolhida clicando na própria imagem (é enviada ao salvar o produto).
+  if (event.target.matches?.('[data-pphoto]') && event.target.files[0]) {
+    const picker = event.target.closest('.product-photo-picker');
+    picker.querySelector('.variant-photo').outerHTML = `<img class="variant-photo" src="${URL.createObjectURL(event.target.files[0])}" alt="" />`;
+    return;
+  }
 
   if (event.target.id === 'daily-date') {
     state.daily.date = event.target.value || todaySaoPaulo();
@@ -1481,7 +1487,13 @@ function productFormHtml() {
   return `
     <form id="product-form">
       <div class="sheet-head"><h2 style="margin:0">${isNew ? 'Novo produto' : 'Editar produto'}</h2><button type="button" id="cancel-edit" aria-label="Fechar">✕</button></div>
-      ${product.image_url ? `<img class="variant-photo" src="${escapeHtml(product.image_url)}" alt="" />` : ''}
+      <label class="product-photo-picker" title="Toque na foto para trocar">
+        ${product.image_url
+          ? `<img class="variant-photo" src="${escapeHtml(product.image_url)}" alt="" />`
+          : `<div class="variant-photo product-photo-empty"><span>📷<br>Toque para adicionar foto</span></div>`}
+        <input type="file" name="photo" data-pphoto accept="image/jpeg,image/png,image/webp" hidden />
+      </label>
+      <p class="muted" style="font-size:12px;margin:-6px 0 10px;text-align:center">${product.image_url ? 'Toque na foto acima para trocar' : 'Toque no quadro acima para escolher uma foto'}</p>
       <div class="field"><label>Nome</label><input name="name" required maxlength="120" value="${escapeHtml(product.name || '')}" /></div>
       <div class="grid-2">
         <div class="field" id="price-field" ${variants.length ? 'hidden' : ''}><label>Preço (R$)</label><input name="price" inputmode="decimal" placeholder="0,00" value="${product.price_cents != null && !variants.length ? centsToInput(product.price_cents) : ''}" /></div>
@@ -1518,7 +1530,6 @@ function productFormHtml() {
         <button type="button" class="btn small" id="add-variant">+ Adicionar variação</button>
       </div>
       ${componentsSectionHtml(product)}
-      <div class="field"><label>Foto ${product.image_url ? '(escolha outra pra trocar)' : '(opcional)'}</label><input type="file" name="photo" accept="image/jpeg,image/png,image/webp" /></div>
       <div class="field"><label>Situação</label>
         <select name="status">
           <option value="active" ${product.available === false ? '' : 'selected'}>✅ Ativo (aparece no cardápio)</option>

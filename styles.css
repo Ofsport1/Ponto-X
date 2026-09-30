@@ -105,6 +105,13 @@ section[id^="cat-"] { scroll-margin-top: 120px; }
 @media (min-width: 700px) { .sheet-backdrop { align-items: center; } .sheet { border-radius: 20px; } }
 
 .variant-photo { display: block; width: auto; height: 220px; max-width: 100%; aspect-ratio: 1; margin-left: auto; margin-right: auto; object-fit: contain; border-radius: 12px; background: #fff; margin-bottom: 8px; }
+/* Cadastro de produto: a foto principal é clicável (mesmo padrão do .variant-thumb das
+   variações) — clicar/tocar na imagem já abre o seletor de arquivo, sem precisar de um
+   campo separado mais embaixo no formulário. */
+.product-photo-picker { display: block; cursor: pointer; }
+.product-photo-picker .variant-photo { transition: opacity .15s ease; }
+.product-photo-picker:hover .variant-photo, .product-photo-picker:active .variant-photo { opacity: .75; }
+.product-photo-empty { display: flex; align-items: center; justify-content: center; border: 1px dashed var(--line); text-align: center; font-size: 13px; color: var(--muted); line-height: 1.5; }
 .price small { font-weight: 400; font-size: 11px; }
 .variant-row { display: grid; grid-template-columns: 1fr 110px auto auto; gap: 8px; align-items: center; margin-bottom: 8px; }
 .variant-row input[type=text], .variant-row input:not([type]) { min-width: 0; }
