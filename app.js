@@ -1881,9 +1881,10 @@ function menuBodyHtml() {
 
   return nav + sections.map(section => {
     const isCombos = isBurgerStore() && /combo/i.test(section.title);
-    // Combos e Mais Vendidos são vitrines horizontais compactas (rolagem lateral),
-    // diferente da grade grande das demais categorias.
-    const isScroll = isBurgerStore() && (section.title === FEATURED_TITLE || isCombos);
+    const isHamburgueres = isBurgerStore() && section.title === 'Hambúrgueres';
+    // Mais Vendidos e Hambúrgueres são vitrines horizontais compactas (rolagem lateral);
+    // Combos volta a usar a mesma grade grande das demais categorias.
+    const isScroll = isBurgerStore() && (section.title === FEATURED_TITLE || isHamburgueres);
     return `
     <section id="cat-${encodeURIComponent(section.title)}" class="${isCombos ? 'menu-section-combos' : ''}">
       <h2 class="section-title">${escapeHtml(section.title)}</h2>
