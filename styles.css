@@ -421,7 +421,10 @@ code { background: var(--card-2); padding: 1px 5px; border-radius: 5px; font-siz
 :root[data-store="pontox"] .pontox-hero-photo .no-photo { color: var(--px-gold); font-size: 48px; }
 :root[data-store="pontox"] .pontox-scroll-hero { position: relative; height: 220vh; margin: 10px 0 16px; }
 :root[data-store="pontox"] .pontox-scroll-hero-sticky { position: sticky; top: 0; height: calc(100vh - 170px); height: calc(100dvh - 170px); min-height: 260px; border-radius: 24px; overflow: hidden; display: flex; align-items: flex-end; background: #111; }
-:root[data-store="pontox"] .pontox-scroll-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+:root[data-store="pontox"] .pontox-scroll-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: saturate(1.18) contrast(1.08) brightness(1.02); }
+/* Vinheta sutil (bordas mais escuras que o centro) pra dar a sensação de "lente de câmera
+   profissional" no vídeo do hambúrguer, sem cobrir o texto (fica abaixo do .pontox-scroll-hero-copy). */
+:root[data-store="pontox"] .pontox-scroll-hero-sticky::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.35) 100%); }
 :root[data-store="pontox"] .pontox-scroll-hero-copy { position: relative; z-index: 1; width: 100%; padding: 20px; background: linear-gradient(to top, rgba(0,0,0,.8), transparent); }
 :root[data-store="pontox"] .pontox-scroll-hero-copy h2 { margin: 4px 0 12px; color: var(--px-cream); font-size: clamp(22px, 5vw, 34px); }
 :root[data-store="pontox"] .search-bar input { background: var(--px-surface); border-color: var(--px-line); }
