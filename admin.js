@@ -543,6 +543,10 @@ app.addEventListener('click', async event => {
     openProductForm(btn.dataset.edit);
   } else if (btn.id === 'new-product') {
     openProductForm('new');
+  } else if (btn.id === 'toggle-advanced') {
+    const advanced = document.getElementById('advanced-fields');
+    advanced.hidden = false;
+    btn.hidden = true;
   } else if (btn.id === 'add-variant') {
     document.getElementById('variants').insertAdjacentHTML('beforeend', variantRowHtml());
     document.getElementById('price-field').hidden = true;
@@ -717,10 +721,10 @@ app.addEventListener('change', event => {
     thumb.firstElementChild.outerHTML = `<img src="${URL.createObjectURL(event.target.files[0])}" alt="" />`;
     return;
   }
-  // Foto do produto escolhida clicando na própria imagem (é enviada ao salvar o produto).
+  // Foto do produto escolhida clicando na própria imagem: abre o recorte manual (arrastar
+  // + zoom) antes de aceitar. A prévia só troca quando o usuário confirma no modal.
   if (event.target.matches?.('[data-pphoto]') && event.target.files[0]) {
-    const picker = event.target.closest('.product-photo-picker');
-    picker.querySelector('.variant-photo').outerHTML = `<img class="variant-photo" src="${URL.createObjectURL(event.target.files[0])}" alt="" />`;
+    openCropModal(event.target.files[0], event.target);
     return;
   }
 
@@ -1483,6 +1487,9 @@ function productFormHtml() {
   const product = isNew ? {} : state.products.find(p => p.id === state.editingProductId) || {};
   const categories = [...new Set(state.products.map(p => p.category))];
   const variants = product.variants || [];
+  // Variações/combo ficam escondidas por padrão (a maioria dos produtos não usa) — só vêm
+  // já abertas se o produto já tiver alguma cadastrada, pra nunca esconder dado existente.
+  const hasAdvanced = Boolean(variants.length || (product.components || []).length);
 
   return `
     <form id="product-form">
@@ -1524,12 +1531,15 @@ function productFormHtml() {
         <div class="field"><label>Custo da unidade (R$, opcional — para o lucro estimado)</label><input name="cost" inputmode="decimal" placeholder="opcional" value="${product.cost_cents != null ? centsToInput(product.cost_cents) : ''}" /></div>
       </div>
       <div class="field"><label>Descrição (opcional)</label><textarea name="description" rows="2" maxlength="500">${escapeHtml(product.description || '')}</textarea></div>
-      <div class="field">
-        <label>Variações (opcional). Ex.: Carvão 2,5 kg / 5 kg, ou sabores. Com variações, o cliente escolhe a opção e cada uma tem o seu preço.</label>
-        <div id="variants">${variants.map(variantRowHtml).join('')}</div>
-        <button type="button" class="btn small" id="add-variant">+ Adicionar variação</button>
+      <button type="button" class="btn small" id="toggle-advanced" ${hasAdvanced ? 'hidden' : ''}>▸ Variações / combo (avançado)</button>
+      <div id="advanced-fields" ${hasAdvanced ? '' : 'hidden'}>
+        <div class="field">
+          <label>Variações (opcional). Ex.: Carvão 2,5 kg / 5 kg, ou sabores. Com variações, o cliente escolhe a opção e cada uma tem o seu preço.</label>
+          <div id="variants">${variants.map(variantRowHtml).join('')}</div>
+          <button type="button" class="btn small" id="add-variant">+ Adicionar variação</button>
+        </div>
+        ${componentsSectionHtml(product)}
       </div>
-      ${componentsSectionHtml(product)}
       <div class="field"><label>Situação</label>
         <select name="status">
           <option value="active" ${product.available === false ? '' : 'selected'}>✅ Ativo (aparece no cardápio)</option>
@@ -1540,6 +1550,7 @@ function productFormHtml() {
       </div>
       <label class="check"><input type="checkbox" name="featured" ${product.featured ? 'checked' : ''} /> ⭐ Mostrar em "Mais Vendidos" (topo do cardápio)</label>
       <label class="check"><input type="checkbox" name="suggest" ${product.suggest ? 'checked' : ''} /> 🧊 Sugerir no carrinho ("Leve junto")</label>
+      <label class="check"><input type="checkbox" name="is_addon" ${product.is_addon ? 'checked' : ''} /> 🔥 É um complemento (aparece em "Turbine seu lanche" dentro do hambúrguer)</label>
       ${storeFeatures().weight !== false ? `<label class="check"><input type="checkbox" name="sold_by_weight" ${product.sold_by_weight ? 'checked' : ''} /> ⚖️ Vendido por kg (o cliente vê "preço estimado" e a equipe ajusta o valor na balança)</label>
       <div class="field"><label>⚖️ Preço do quilo (R$) — aparece no cardápio como "R$ X /kg"</label><input name="kg_price" inputmode="decimal" placeholder="Ex.: 17,99" value="${product.kg_price_cents != null ? centsToInput(product.kg_price_cents) : ''}" /></div>` : ''}
       <div class="row">
@@ -1810,6 +1821,143 @@ function closeProductForm() {
   closeModal();
 }
 
+// Recorte/zoom manual da foto principal do produto: um modal pequeno (empilhado por cima
+// do formulário de cadastro, sem fechá-lo) onde dá pra arrastar a foto e ampliar até o
+// enquadramento ficar do jeito que a pessoa quer, em vez de confiar só no recorte
+// automático do resizeImage() abaixo. Reaproveita o mesmo visual de "sheet" do painel,
+// mas com id/lógica própria — abrir com openModal() fecharia o formulário por trás.
+function cropModalHtml() {
+  return `
+    <div class="sheet-head"><h2 style="margin:0">Ajustar foto</h2><button type="button" data-crop-close aria-label="Fechar">✕</button></div>
+    <div class="crop-canvas-wrap"><canvas id="crop-canvas" width="640" height="640"></canvas></div>
+    <div class="field"><label>Zoom</label><input type="range" id="crop-zoom" min="1" max="3" step="0.01" value="1" /></div>
+    <p class="muted" style="font-size:12px;margin:-6px 0 10px;text-align:center">Arraste a foto para posicionar</p>
+    <div class="row">
+      <button type="button" class="btn" data-crop-close style="flex:1">Cancelar</button>
+      <button type="button" class="btn primary" id="crop-confirm" style="flex:1">Usar essa foto</button>
+    </div>`;
+}
+
+function closeCropModal() {
+  document.getElementById('crop-modal')?.remove();
+}
+
+async function openCropModal(file, input) {
+  let bitmap;
+  try {
+    bitmap = await createImageBitmap(file);
+  } catch {
+    toast('Não foi possível abrir essa imagem.', true);
+    input.value = '';
+    return;
+  }
+
+  const SIZE = 640; // resolução do canvas de edição
+  const OUTPUT_SIZE = 800; // resolução final salva (igual ao resizeImage())
+
+  const backdrop = document.createElement('div');
+  backdrop.className = 'sheet-backdrop popup';
+  backdrop.id = 'crop-modal';
+  backdrop.innerHTML = `<div class="sheet">${cropModalHtml()}</div>`;
+  backdrop.addEventListener('mousedown', event => { if (event.target === backdrop) cancel(); });
+  app.appendChild(backdrop);
+
+  const canvas = backdrop.querySelector('#crop-canvas');
+  const ctx = canvas.getContext('2d');
+  const zoomInput = backdrop.querySelector('#crop-zoom');
+
+  // "cover": a foto sempre preenche o quadrado inteiro, sem sobra em volta.
+  const baseScale = Math.max(SIZE / bitmap.width, SIZE / bitmap.height);
+  let zoom = 1;
+  let offsetX = 0;
+  let offsetY = 0;
+
+  function clampOffset() {
+    const scale = baseScale * zoom;
+    const maxX = Math.max(0, (bitmap.width * scale - SIZE) / 2);
+    const maxY = Math.max(0, (bitmap.height * scale - SIZE) / 2);
+    offsetX = Math.min(maxX, Math.max(-maxX, offsetX));
+    offsetY = Math.min(maxY, Math.max(-maxY, offsetY));
+  }
+
+  function draw() {
+    const scale = baseScale * zoom;
+    const w = bitmap.width * scale;
+    const h = bitmap.height * scale;
+    ctx.clearRect(0, 0, SIZE, SIZE);
+    ctx.drawImage(bitmap, SIZE / 2 - w / 2 - offsetX, SIZE / 2 - h / 2 - offsetY, w, h);
+  }
+
+  draw();
+
+  let dragging = false;
+  let startX = 0, startY = 0, startOffX = 0, startOffY = 0;
+
+  canvas.addEventListener('pointerdown', event => {
+    dragging = true;
+    canvas.setPointerCapture(event.pointerId);
+    startX = event.clientX;
+    startY = event.clientY;
+    startOffX = offsetX;
+    startOffY = offsetY;
+  });
+  canvas.addEventListener('pointermove', event => {
+    if (!dragging) return;
+    const ratio = canvas.width / canvas.getBoundingClientRect().width;
+    offsetX = startOffX - (event.clientX - startX) * ratio;
+    offsetY = startOffY - (event.clientY - startY) * ratio;
+    clampOffset();
+    draw();
+  });
+  const stopDrag = event => { dragging = false; canvas.releasePointerCapture?.(event.pointerId); };
+  canvas.addEventListener('pointerup', stopDrag);
+  canvas.addEventListener('pointercancel', stopDrag);
+
+  zoomInput.addEventListener('input', () => {
+    zoom = Number(zoomInput.value);
+    clampOffset();
+    draw();
+  });
+
+  function cancel() {
+    closeCropModal();
+    input.value = '';
+  }
+
+  backdrop.querySelectorAll('[data-crop-close]').forEach(btn => btn.addEventListener('click', cancel));
+
+  backdrop.querySelector('#crop-confirm').addEventListener('click', async () => {
+    const out = document.createElement('canvas');
+    out.width = OUTPUT_SIZE;
+    out.height = OUTPUT_SIZE;
+    const octx = out.getContext('2d');
+    const outScale = OUTPUT_SIZE / SIZE;
+    const scale = baseScale * zoom * outScale;
+    const w = bitmap.width * scale;
+    const h = bitmap.height * scale;
+    octx.imageSmoothingQuality = 'high';
+    octx.drawImage(bitmap, OUTPUT_SIZE / 2 - w / 2 - offsetX * outScale, OUTPUT_SIZE / 2 - h / 2 - offsetY * outScale, w, h);
+
+    const blob = await new Promise(resolve => out.toBlob(resolve, 'image/webp', 0.9));
+    closeCropModal();
+
+    if (!blob) {
+      toast('Não foi possível processar a foto.', true);
+      input.value = '';
+      return;
+    }
+
+    const croppedFile = new File([blob], 'produto.webp', { type: 'image/webp' });
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(croppedFile);
+    input.files = dataTransfer.files;
+    input.dataset.manualCrop = '1';
+
+    const picker = input.closest('.product-photo-picker');
+    picker.querySelector('.variant-photo').outerHTML = `<img class="variant-photo" src="${URL.createObjectURL(croppedFile)}" alt="" />`;
+  });
+}
+
 // Padroniza a foto no navegador antes de enviar (igual às do cardápio): quadrada 800×800,
 // fundo branco, sem a sobra branca das bordas e com o produto centralizado.
 // Também economiza o armazenamento do Supabase.
@@ -1898,7 +2046,9 @@ async function submitProductForm(form) {
     });
   }
 
-  const components = state.componentsReady ? readComponentRows(form) : undefined;
+  const advancedVisible = !form.querySelector('#advanced-fields')?.hidden;
+  const variantsPayload = advancedVisible ? variants : undefined;
+  const components = advancedVisible && state.componentsReady ? readComponentRows(form) : undefined;
 
   if (typeof components === 'string') return toast(components, true);
 
@@ -1928,10 +2078,11 @@ async function submitProductForm(form) {
     ...(form.status.value === 'active' ? {} : { inactive_reason: form.status.value }),
     featured: form.featured.checked,
     suggest: form.suggest.checked,
+    is_addon: Boolean(form.is_addon?.checked),
     sold_by_weight: Boolean(form.sold_by_weight?.checked),
     kg_price_cents: optionalCents(form.kg_price?.value || '') ?? null,
-    variants,
-    ...(components ? { components } : {}),
+    ...(variantsPayload !== undefined ? { variants: variantsPayload } : {}),
+    ...(components !== undefined ? { components } : {}),
     chill_fee_cents: optionalCents(form.chill_fee?.value || '') ?? null,
     ...(variants.length ? { promo_price_cents: null, promo_weekdays: null } : {
       promo_price_cents: optionalCents(form.promo_price.value) ?? null,
@@ -1970,7 +2121,9 @@ async function submitProductForm(form) {
     const file = form.photo.files[0];
 
     if (file) {
-      const blob = await resizeImage(file);
+      // Foto ajustada no modal de recorte (openCropModal) já está no enquadramento certo
+      // (800×800 webp) — não passa pelo recorte automático de novo.
+      const blob = form.photo.dataset.manualCrop === '1' ? file : await resizeImage(file);
       await api(`/api/admin/products/${product.id}/photo`, {
         method: 'POST',
         body: blob,

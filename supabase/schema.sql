@@ -986,3 +986,8 @@ alter table public.stores add column if not exists profile jsonb not null defaul
 -- Multi-loja (passo 3b): apelidos de bairro / bairros "grandes" / caminhos de entrega por loja.
 -- {"broad": [...], "aliases": {"nome": [...]}, "routes": [{"name": "...", "stops": [[...], ...]}]}. Vazio = sem regras.
 alter table public.stores add column if not exists delivery_rules jsonb not null default '{}'::jsonb;
+
+-- 2026-09-30: complemento de verdade ("Turbine seu lanche"), no lugar de decidir pelo nome
+-- conter "adicional". Migra quem já usava essa convenção, sem perder nenhum já cadastrado.
+alter table products add column if not exists is_addon boolean not null default false;
+update products set is_addon = true where is_addon = false and name ilike '%adicional%';

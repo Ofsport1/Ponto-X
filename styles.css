@@ -112,6 +112,12 @@ section[id^="cat-"] { scroll-margin-top: 120px; }
 .product-photo-picker .variant-photo { transition: opacity .15s ease; }
 .product-photo-picker:hover .variant-photo, .product-photo-picker:active .variant-photo { opacity: .75; }
 .product-photo-empty { display: flex; align-items: center; justify-content: center; border: 1px dashed var(--line); text-align: center; font-size: 13px; color: var(--muted); line-height: 1.5; }
+/* Modal de recorte manual da foto (openCropModal, admin.js): fica empilhado por cima do
+   formulário de cadastro (não fecha ele), num popup pequeno e centralizado. */
+.crop-canvas-wrap { width: 100%; aspect-ratio: 1; margin-bottom: 12px; border-radius: 12px; overflow: hidden; background: #fff; border: 1px solid var(--line); touch-action: none; }
+.crop-canvas-wrap canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
+.crop-canvas-wrap canvas:active { cursor: grabbing; }
+.field input[type="range"] { padding: 0; border: 0; background: none; accent-color: var(--gold); }
 .price small { font-weight: 400; font-size: 11px; }
 .variant-row { display: grid; grid-template-columns: 1fr 110px auto auto; gap: 8px; align-items: center; margin-bottom: 8px; }
 .variant-row input[type=text], .variant-row input:not([type]) { min-width: 0; }

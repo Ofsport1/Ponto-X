@@ -968,7 +968,7 @@ async function handleMenu(request, env) {
   const [response, today] = await Promise.all([
     supabaseFetch(
       env,
-      `products?select=id,name,description,category,price_cents,bulk_qty,bulk_price_cents,chill_fee_cents,promo_price_cents,promo_starts_at,promo_ends_at,promo_weekdays,created_at,image_url,featured,featured_order,suggest,available,sold_by_weight,kg_price_cents,product_variants(id,name,price_cents,bulk_qty,bulk_price_cents,available,sort_order,image_url)&store_id=eq.${store.id}&order=sort_order.asc,name.asc`
+      `products?select=id,name,description,category,price_cents,bulk_qty,bulk_price_cents,chill_fee_cents,promo_price_cents,promo_starts_at,promo_ends_at,promo_weekdays,created_at,image_url,featured,featured_order,suggest,available,sold_by_weight,kg_price_cents,is_addon,product_variants(id,name,price_cents,bulk_qty,bulk_price_cents,available,sort_order,image_url)&store_id=eq.${store.id}&order=sort_order.asc,name.asc`
     ),
     todayStats(env, store).catch(() => null),
   ]);
@@ -2306,7 +2306,7 @@ function pickFields(value, fields) {
 
 function productForRole(product, session) {
   if (session?.urole === 'admin') return product;
-  const fields = 'id,name,description,category,price_cents,bulk_qty,bulk_price_cents,chill_fee_cents,promo_price_cents,promo_starts_at,promo_ends_at,promo_weekdays,created_at,image_url,available,inactive_reason,inactive_since,featured,featured_order,suggest,sort_order,sold_by_weight,kg_price_cents';
+  const fields = 'id,name,description,category,price_cents,bulk_qty,bulk_price_cents,chill_fee_cents,promo_price_cents,promo_starts_at,promo_ends_at,promo_weekdays,created_at,image_url,available,inactive_reason,inactive_since,featured,featured_order,suggest,sort_order,sold_by_weight,kg_price_cents,is_addon';
   return { ...pickFields(product, fields), variants: (product.variants || []).map(v => pickFields(v, fields)) };
 }
 
@@ -3031,6 +3031,11 @@ function readProductFields(body, partial) {
 
   if (body.suggest !== undefined) {
     fields.suggest = Boolean(body.suggest);
+  }
+
+  // Complemento: aparece em "Turbine seu lanche" dentro dos hambúrgueres.
+  if (body.is_addon !== undefined) {
+    fields.is_addon = Boolean(body.is_addon);
   }
 
   // Destaque: aparece também na seção "Mais Vendidos", no topo do cardápio.

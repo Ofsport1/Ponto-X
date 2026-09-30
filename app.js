@@ -578,7 +578,10 @@ function updateScrollVideo() {
   const rect = section.getBoundingClientRect();
   const total = rect.height - window.innerHeight;
   const progress = total > 0 ? Math.min(1, Math.max(0, -rect.top / total)) : 0;
-  video.currentTime = progress * video.duration;
+  // Corta 1s do fim do vídeo (sem reencodar o arquivo): o scroll nunca chega no
+  // último segundo de verdade, sempre para 1s antes.
+  const effectiveDuration = Math.max(0, video.duration - 1);
+  video.currentTime = progress * effectiveDuration;
 }
 
 window.addEventListener('scroll', () => {
@@ -853,6 +856,7 @@ function openProduct(productId) {
   const promo = promoNow(product);
   const key = cartKey(product.id);
   const qty = state.cart[key] || 0;
+  const additionalsHtml = product.category === 'Hambúrgueres' ? getAdditionalsHtml() : '';
 
   const sheet = openSheet(`
     <div class="sheet-head"><h2>${escapeHtml(product.name)}</h2><button data-close aria-label="Fechar">✕</button></div>
@@ -869,6 +873,7 @@ function openProduct(productId) {
           : `<button class="btn primary" data-inc="${key}">Adicionar</button>`}
       </span>
     </div>
+    ${additionalsHtml}
     <button class="btn primary block" data-close style="margin-top:16px">Pronto</button>
   `);
 
@@ -886,6 +891,12 @@ function openProduct(productId) {
     } else if (btn.dataset.bulk) {
       setQty(btn.dataset.bulk, (state.cart[btn.dataset.bulk] || 0) + Number(btn.dataset.bulkQty));
       addedFeedback(`${btn.dataset.bulkQty} un.`);
+    } else if (btn.dataset.ainc) {
+      const before = state.cart[btn.dataset.ainc] || 0;
+      setQty(btn.dataset.ainc, before + 1);
+      if (!before) addedFeedback(resolveCartKey(btn.dataset.ainc)?.name);
+    } else if (btn.dataset.adec) {
+      setQty(btn.dataset.adec, (state.cart[btn.dataset.adec] || 0) - 1);
     } else {
       return;
     }
@@ -897,14 +908,14 @@ function openProduct(productId) {
 
 function getAdditionalsHtml() {
   const additionals = state.products.filter(p =>
-    p.available !== false && p.name.toLowerCase().includes('adicional') && p.category === 'Hambúrgueres'
+    p.available !== false && p.is_addon === true && p.category === 'Hambúrgueres'
   );
 
   if (!additionals.length) return '';
 
   return `
     <div style="margin-top:24px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.2)">
-      <h3 style="margin:0 0 12px;font-size:14px;font-weight:600">Adicionais disponíveis</h3>
+      <h3 style="margin:0 0 12px;font-size:14px;font-weight:600">🔥 Turbine seu lanche</h3>
       ${additionals.map(addon => {
         const key = cartKey(addon.id);
         const qty = state.cart[key] || 0;
