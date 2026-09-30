@@ -646,7 +646,9 @@ function applyShowcaseProximity(track, cardMeta, currentOffset, leadState) {
   cardMeta.forEach(meta => {
     const distance = meta.center - currentOffset - viewportHalf;
     const closeness = 1 - Math.min(1, Math.abs(distance) / (falloff * 1.15));
-    gsap.set(meta.el, { scale: gsap.utils.interpolate(0.88, 1, closeness), autoAlpha: gsap.utils.interpolate(0.65, 1, closeness) });
+    // Só escala (nunca opacidade): opacidade via GSAP brigava com a transition CSS do
+    // card base e podia deixar um card "preso" quase invisível — visibilidade sempre 100%.
+    gsap.set(meta.el, { scale: gsap.utils.interpolate(0.92, 1, closeness) });
 
     const img = meta.el.querySelector('.photo img, .photo .no-photo');
     if (img) {

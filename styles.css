@@ -476,6 +476,14 @@ code { background: var(--card-2); padding: 1px 5px; border-radius: 5px; font-siz
   scroll-snap-align: start;
   opacity: 1;
   transform: none;
+  /* transform/opacity aqui são 100% do GSAP (escala de destaque central); a transition
+     genérica do .product (linha ~435) brigava com os gsap.set() a cada frame e podia
+     deixar um card preso num estado quase invisível — desligada só para esses dois. */
+  transition: box-shadow .25s ease, border-color .18s ease;
+}
+:root[data-store="pontox"] #menu-body .menu-section-scroll .product .photo img,
+:root[data-store="pontox"] #menu-body .menu-section-scroll .product .photo .no-photo {
+  transition: none; /* parallax/zoom da imagem é só GSAP (yPercent/scale) */
 }
 @media (min-width: 860px) and (max-width: 1179.98px) {
   :root[data-store="pontox"] #menu-body .menu-section-scroll { --sh-per-view: 3; }
