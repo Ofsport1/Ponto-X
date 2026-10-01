@@ -542,6 +542,10 @@ app.addEventListener('click', async event => {
   } else if (btn.dataset.edit) {
     openProductForm(btn.dataset.edit);
   } else if (btn.id === 'new-product') {
+    state.newAsAddon = false;
+    openProductForm('new');
+  } else if (btn.id === 'new-addon') {
+    state.newAsAddon = true;
     openProductForm('new');
   } else if (btn.id === 'toggle-advanced') {
     const advanced = document.getElementById('advanced-fields');
@@ -1484,7 +1488,7 @@ function optionalCents(text) {
 
 function productFormHtml() {
   const isNew = state.editingProductId === 'new';
-  const product = isNew ? {} : state.products.find(p => p.id === state.editingProductId) || {};
+  const product = isNew ? (state.newAsAddon ? { is_addon: true, category: 'Adicionais' } : {}) : state.products.find(p => p.id === state.editingProductId) || {};
   const categories = [...new Set(state.products.map(p => p.category))];
   const variants = product.variants || [];
   // Variações/combo ficam escondidas por padrão (a maioria dos produtos não usa) — só vêm
@@ -1550,7 +1554,7 @@ function productFormHtml() {
       </div>
       <label class="check"><input type="checkbox" name="featured" ${product.featured ? 'checked' : ''} /> ⭐ Mostrar em "Mais Vendidos" (topo do cardápio)</label>
       <label class="check"><input type="checkbox" name="suggest" ${product.suggest ? 'checked' : ''} /> 🧊 Sugerir no carrinho ("Leve junto")</label>
-      <label class="check"><input type="checkbox" name="is_addon" ${product.is_addon ? 'checked' : ''} /> 🔥 É um complemento (aparece em "Turbine seu lanche" dentro do hambúrguer)</label>
+      <label class="check"><input type="checkbox" name="is_addon" ${product.is_addon ? 'checked' : ''} /> 🔥 Turbine seu lanche (adicional: aparece só dentro dos lanches, fora do cardápio geral)</label>
       ${storeFeatures().weight !== false ? `<label class="check"><input type="checkbox" name="sold_by_weight" ${product.sold_by_weight ? 'checked' : ''} /> ⚖️ Vendido por kg (o cliente vê "preço estimado" e a equipe ajusta o valor na balança)</label>
       <div class="field"><label>⚖️ Preço do quilo (R$) — aparece no cardápio como "R$ X /kg"</label><input name="kg_price" inputmode="decimal" placeholder="Ex.: 17,99" value="${product.kg_price_cents != null ? centsToInput(product.kg_price_cents) : ''}" /></div>` : ''}
       <div class="row">
@@ -1566,7 +1570,7 @@ function normalizeText(value) {
 }
 
 function productListHtml() {
-  const products = searchAdminProducts(state.productSearch);
+  let products = searchAdminProducts(state.productSearch);
 
   if (!state.products.length) return '<p class="empty">Nenhum produto cadastrado ainda.</p>';
 
@@ -1574,11 +1578,29 @@ function productListHtml() {
 
   if (state.productView === 'inactive') return inactiveProductsHtml(products);
 
+  // Adicionais ("Turbine seu lanche") ficam só na visão própria, fora do cardápio e da lista.
+  if (state.productView === 'addons') return addonsListHtml(products.filter(p => p.is_addon));
+
+  products = products.filter(p => !p.is_addon);
+
+  if (!products.length) return '<p class="empty">Nenhum produto encontrado.</p>';
+
   // Visão "cardápio": igual ao que o cliente vê (só os ativos); toque para editar.
   if (state.productView === 'grid') {
     return menuGridHtml(products.filter(p => p.available), 'edit', !state.productSearch.trim());
   }
 
+  return productCardsHtml(products);
+}
+
+function addonsListHtml(addons) {
+  return `
+    <p class="muted" style="margin:0 0 8px;font-size:13px">🔥 Aparecem em "Turbine seu lanche" quando o cliente abre um lanche. Não aparecem no cardápio geral; o valor entra no pedido como item separado.</p>
+    ${isAdminUser() ? '<button class="btn primary" id="new-addon" style="width:100%;margin-bottom:12px">+ Novo adicional</button>' : ''}
+    ${addons.length ? productCardsHtml(addons) : '<p class="empty">Nenhum adicional cadastrado.</p>'}`;
+}
+
+function productCardsHtml(products) {
   return products.map((p, i) => `
     ${i === 0 || products[i - 1].category !== p.category ? `<h2 class="section-title">${escapeHtml(p.category)}</h2>` : ''}
     <div class="card admin-product">
@@ -1676,6 +1698,7 @@ function productsHtml() {
         <button data-product-view="grid" class="${state.productView === 'grid' ? 'active' : ''}">🖼️ Cardápio</button>
         <button data-product-view="list" class="${state.productView === 'list' ? 'active' : ''}">☰ Lista</button>
         <button data-product-view="inactive" class="${state.productView === 'inactive' ? 'active' : ''}">⛔ Inativos (${inactiveCount})</button>
+        <button data-product-view="addons" class="${state.productView === 'addons' ? 'active' : ''}">🔥 Adicionais (${state.products.filter(p => p.is_addon).length})</button>
       </div>
     </div>
     ${state.productView === 'grid' ? `<p class="muted" style="margin:0 0 8px;font-size:13px">Igual ao que o cliente vê: só produtos ativos. Toque num produto para editar.${inactiveCount ? ` Os ${inactiveCount} inativos ficam em <button class="btn small" data-product-view="inactive">⛔ Inativos</button>.` : ''}</p>` : ''}

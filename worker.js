@@ -1653,11 +1653,18 @@ async function priceCartItems(env, store, rawList, fromAdmin) {
   const ids = [...new Set([...quantities.values()].map(q => q.productId))].join(',');
   const productsResponse = await supabaseFetch(
     env,
-    `products?select=id,name,category,price_cents,bulk_qty,bulk_price_cents,cost_cents,chill_fee_cents,promo_price_cents,promo_starts_at,promo_ends_at,promo_weekdays,available,inactive_reason,sold_by_weight,product_variants(id,name,price_cents,bulk_qty,bulk_price_cents,cost_cents,available)&store_id=eq.${store.id}&id=in.(${ids})`
+    `products?select=id,name,category,price_cents,bulk_qty,bulk_price_cents,cost_cents,chill_fee_cents,promo_price_cents,promo_starts_at,promo_ends_at,promo_weekdays,available,inactive_reason,sold_by_weight,is_addon,product_variants(id,name,price_cents,bulk_qty,bulk_price_cents,cost_cents,available)&store_id=eq.${store.id}&id=in.(${ids})`
   );
   const products = await readJsonResponse(productsResponse, 'Não foi possível validar os produtos.');
 
   const byId = new Map(products.map(p => [p.id, p]));
+
+  // Adicional ("Turbine seu lanche") no site só vai junto com um lanche.
+  if (!fromAdmin && products.some(p => p.is_addon)
+    && !products.some(p => !p.is_addon && /hamburg|lanche/.test(String(p.category || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()))) {
+    return { response: json({ error: 'Adicional só pode ser pedido junto com um lanche.' }, 400) };
+  }
+
   const items = [];
   let subtotal = 0;
   const unavailable = json({ error: 'Algum produto do carrinho não está mais disponível. Atualize a página.' }, 409);

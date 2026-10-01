@@ -72,6 +72,7 @@ const PAYMENT_CHOICES = ['pix', 'debito', 'credito', 'dinheiro'];
 const state = {
   store: null,
   products: [],
+  addons: [],
   cart: loadJson(CART_KEY, {}),
   chill: loadJson(CHILL_KEY, {}),
   search: '',
@@ -143,7 +144,17 @@ function cartKey(productId, variantId) {
 }
 
 function productById(id) {
-  return state.products.find(p => p.id === id);
+  return state.products.find(p => p.id === id) || state.addons.find(p => p.id === id);
+}
+
+// Adicionais ("Turbine seu lanche") não entram no cardápio geral: só aparecem dentro dos lanches.
+function setMenuProducts(products) {
+  state.products = products.filter(p => !p.is_addon);
+  state.addons = products.filter(p => p.is_addon);
+}
+
+function isLanche(product) {
+  return Boolean(product) && !product.is_addon && /hamburg|lanche/.test(normalizeText(product.category));
 }
 
 function resolveCartKey(key) {
@@ -792,7 +803,7 @@ function openVariants(productId) {
 
   if (!product) return;
 
-  const additionalsHtml = product.category === 'Hambúrgueres' && productCartCount(product.id) > 0 ? getAdditionalsHtml() : '';
+  const additionalsHtml = isLanche(product) ? getAdditionalsHtml() : '';
 
   const sheet = openSheet(`
     <div class="sheet-head"><h2>${escapeHtml(product.name)}</h2><button data-close aria-label="Fechar">✕</button></div>
@@ -865,7 +876,7 @@ function openProduct(productId) {
   const promo = promoNow(product);
   const key = cartKey(product.id);
   const qty = state.cart[key] || 0;
-  const additionalsHtml = product.category === 'Hambúrgueres' && productCartCount(product.id) > 0 ? getAdditionalsHtml() : '';
+  const additionalsHtml = isLanche(product) ? getAdditionalsHtml() : '';
 
   const sheet = openSheet(`
     <div class="sheet-head"><h2>${escapeHtml(product.name)}</h2><button data-close aria-label="Fechar">✕</button></div>
@@ -919,9 +930,7 @@ function openProduct(productId) {
 }
 
 function getAdditionalsHtml() {
-  const additionals = state.products.filter(p =>
-    p.available !== false && p.is_addon === true && p.category === 'Hambúrgueres'
-  );
+  const additionals = state.addons.filter(p => p.available !== false);
 
   if (!additionals.length) return '';
 
@@ -2189,6 +2198,9 @@ app.addEventListener('click', event => {
     setQty(target.dataset.inc, before + 1);
     renderMenu();
     if (!before) addedFeedback(resolveCartKey(target.dataset.inc)?.name);
+    // Lanche recém-adicionado: abre o detalhe para mostrar o "Turbine seu lanche".
+    const added = productById(target.dataset.inc.split(':')[0]);
+    if (!before && isLanche(added) && state.addons.some(a => a.available !== false)) openProduct(added.id);
   } else if (target.dataset.rate) {
     state.reviewRating = Number(target.dataset.rate);
     document.querySelectorAll('[data-rate]').forEach(b => b.classList.toggle('on', Number(b.dataset.rate) <= state.reviewRating));
@@ -2655,7 +2667,7 @@ function openCart() {
     ${entries.map(({ key, name, price, qty, line, bulk, chill, total, product, variant }) => `
       <div class="cart-line">
         ${cartPhotoHtml(product, variant)}
-        <span class="name">${escapeHtml(name)}<br><span class="muted">${money(price)}${qty > 1 || chill?.on ? ` · ${money(total)}` : ''}${storeFeatures().weight !== false && product?.sold_by_weight ? ' · ⚖️ estimado' : ''}</span>
+        <span class="name">${product?.is_addon ? '🔥 Adicional: ' : ''}${escapeHtml(name)}<br><span class="muted">${money(price)}${qty > 1 || chill?.on ? ` · ${money(total)}` : ''}${storeFeatures().weight !== false && product?.sold_by_weight ? ' · ⚖️ estimado' : ''}</span>
           ${line.packs ? `<br><span class="bulk-hint">🍻 ${line.packs} engradado${line.packs > 1 ? 's' : ''} · economia de ${money(line.saved)}</span>` : bulk ? `<br><span class="bulk-hint">faltam ${bulk.qty - (qty % bulk.qty)} pro preço de engradado</span>` : ''}
           ${chill ? `<br><button type="button" class="chill-toggle ${chill.on ? 'on' : ''}" data-chill="${key}">${chill.on ? '✅' : '⬜'} 🧊 Engradado gelado (+ ${money(chill.fee)}${chill.packs > 1 ? ` cada · ${chill.packs} engradados` : ''})</button>` : ''}</span>
         <span class="qty">
@@ -4196,7 +4208,7 @@ async function start() {
   try {
     const data = await api('/api/menu');
     state.store = data.store;
-    state.products = data.products;
+    setMenuProducts(data.products);
     state.today = data.today || null;
     state.timeOffset = data.server_time ? new Date(data.server_time).getTime() - Date.now() : 0;
     state.pushKey = data.push_public_key || null;
@@ -4256,7 +4268,7 @@ async function checkForUpdate() {
     }
 
     state.store = data.store;
-    state.products = data.products;
+    setMenuProducts(data.products);
     state.today = data.today || state.today;
     if (data.server_time) state.timeOffset = new Date(data.server_time).getTime() - Date.now();
     cleanCart();
