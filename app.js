@@ -874,7 +874,7 @@ function openVariants(productId) {
     }
 
     keepSheetScroll(() => openVariants(productId));
-    renderMenu();
+    refreshCartUi();
   });
 }
 
@@ -943,7 +943,7 @@ function openProduct(productId) {
     }
 
     keepSheetScroll(() => openProduct(productId));
-    renderMenu();
+    refreshCartUi();
   });
 }
 
@@ -2146,6 +2146,31 @@ function cartBarHtml() {
     : '';
 }
 
+// Mudou só o carrinho: atualiza o botão de cada card e a barra do carrinho, sem redesenhar
+// o cardápio (redesenhar recria todas as fotos e faz a tela piscar).
+function refreshCartUi() {
+  const body = document.getElementById('menu-body');
+  const slot = document.getElementById('cart-slot');
+
+  if (!body || !slot) return renderMenu();
+
+  const scratch = document.createElement('div');
+
+  for (const card of body.querySelectorAll('.product[data-pid]')) {
+    const product = productById(card.dataset.pid);
+    const old = card.querySelector('.bottom');
+
+    if (!product || !old) continue;
+
+    scratch.innerHTML = productHtml(product);
+    const fresh = scratch.querySelector('.bottom');
+
+    if (fresh && fresh.innerHTML !== old.innerHTML) old.innerHTML = fresh.innerHTML;
+  }
+
+  slot.innerHTML = cartBarHtml();
+}
+
 // O cabeçalho e a busca são montados uma vez só (para a busca não perder o foco
 // enquanto o cliente digita); depois só a lista de produtos e o carrinho são redesenhados.
 function renderMenu() {
@@ -2216,7 +2241,7 @@ app.addEventListener('click', event => {
   if (target.dataset.inc) {
     const before = state.cart[target.dataset.inc] || 0;
     setQty(target.dataset.inc, before + 1);
-    renderMenu();
+    refreshCartUi();
     if (!before) addedFeedback(resolveCartKey(target.dataset.inc)?.name);
     // Lanche recém-adicionado: abre o detalhe para mostrar o "Turbine seu lanche".
     const added = productById(target.dataset.inc.split(':')[0]);
@@ -2232,7 +2257,7 @@ app.addEventListener('click', event => {
     openSimilar(target.dataset.similar);
   } else if (target.dataset.dec) {
     setQty(target.dataset.dec, (state.cart[target.dataset.dec] || 0) - 1);
-    renderMenu();
+    refreshCartUi();
   } else if (target.dataset.choose) {
     openVariants(target.dataset.choose);
   } else if (target.dataset.cat) {
@@ -2246,7 +2271,7 @@ app.addEventListener('click', event => {
     reorder(target.dataset.reorder, target);
   } else if (target.dataset.bulk) {
     setQty(target.dataset.bulk, (state.cart[target.dataset.bulk] || 0) + Number(target.dataset.bulkQty));
-    renderMenu();
+    refreshCartUi();
     addedFeedback(`${target.dataset.bulkQty} un.`);
   } else if (target.dataset.repeat) {
     const [productId, variantId] = target.dataset.repeat.split(':');
@@ -2283,12 +2308,23 @@ app.addEventListener('click', event => {
 /* ---------------- Carrinho e checkout ---------------- */
 
 function openSheet(html) {
+  // Ao redesenhar a mesma janela, reaproveita as fotos já carregadas (senão elas piscam).
+  const oldImages = new Map([...document.querySelectorAll('#sheet img[src]')].map(img => [img.getAttribute('src'), img]));
+
   closeSheet();
 
   const backdrop = document.createElement('div');
   backdrop.className = 'sheet-backdrop';
   backdrop.id = 'sheet';
   backdrop.innerHTML = `<div class="sheet">${html}</div>`;
+
+  for (const img of backdrop.querySelectorAll('img[src]')) {
+    const old = oldImages.get(img.getAttribute('src'));
+    if (old && old.className === img.className) {
+      img.replaceWith(old);
+      oldImages.delete(img.getAttribute('src'));
+    }
+  }
   backdrop.addEventListener('click', event => {
     if (event.target === backdrop || event.target.closest('[data-close]')) closeSheet();
   });
@@ -2590,7 +2626,7 @@ function openSimilar(productId) {
     if (btn?.dataset.simAdd) {
       setQty(btn.dataset.simAdd, (state.cart[btn.dataset.simAdd] || 0) + 1);
       closeSheet();
-      renderMenu();
+      refreshCartUi();
       addedFeedback(resolveCartKey(btn.dataset.simAdd)?.name);
     } else if (btn?.dataset.simChoose) {
       openVariants(btn.dataset.simChoose);
@@ -2742,15 +2778,15 @@ function openCart() {
       else state.chill[btn.dataset.chill] = true;
       saveJson(CHILL_KEY, state.chill);
       openCart();
-      renderMenu();
+      refreshCartUi();
     } else if (btn.dataset.cinc) {
       setQty(btn.dataset.cinc, (state.cart[btn.dataset.cinc] || 0) + 1);
       keepSheetScroll(openCart);
-      renderMenu();
+      refreshCartUi();
     } else if (btn.dataset.cdec) {
       setQty(btn.dataset.cdec, (state.cart[btn.dataset.cdec] || 0) - 1);
       keepSheetScroll(openCart);
-      renderMenu();
+      refreshCartUi();
     } else if (btn.dataset.suggest) {
       const product = productById(btn.dataset.suggest);
 
@@ -2761,7 +2797,7 @@ function openCart() {
       } else {
         setQty(cartKey(product.id), (state.cart[cartKey(product.id)] || 0) + 1);
         keepSheetScroll(openCart);
-        renderMenu();
+        refreshCartUi();
         addedFeedback(product.name);
       }
     } else if ('iceNo' in btn.dataset) {
