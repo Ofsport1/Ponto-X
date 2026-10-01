@@ -873,7 +873,7 @@ function openVariants(productId) {
       return;
     }
 
-    openVariants(productId);
+    keepSheetScroll(() => openVariants(productId));
     renderMenu();
   });
 }
@@ -942,7 +942,7 @@ function openProduct(productId) {
       return;
     }
 
-    openProduct(productId);
+    keepSheetScroll(() => openProduct(productId));
     renderMenu();
   });
 }
@@ -2297,6 +2297,14 @@ function openSheet(html) {
   return backdrop;
 }
 
+// Redesenha a janela aberta sem pular para o topo (ex.: tocar em "Adicionar" num adicional lá embaixo).
+function keepSheetScroll(render) {
+  const top = document.querySelector('#sheet .sheet')?.scrollTop || 0;
+  render();
+  const sheet = document.querySelector('#sheet .sheet');
+  if (sheet) sheet.scrollTop = top;
+}
+
 function closeSheet() {
   document.getElementById('sheet')?.remove();
 }
@@ -2728,7 +2736,7 @@ function openCart() {
       toast('Carrinho limpo.');
     } else if (btn.dataset.nocheddar) {
       toggleNoCheddar(btn.dataset.nocheddar);
-      openCart();
+      keepSheetScroll(openCart);
     } else if (btn.dataset.chill) {
       if (state.chill[btn.dataset.chill]) delete state.chill[btn.dataset.chill];
       else state.chill[btn.dataset.chill] = true;
@@ -2737,11 +2745,11 @@ function openCart() {
       renderMenu();
     } else if (btn.dataset.cinc) {
       setQty(btn.dataset.cinc, (state.cart[btn.dataset.cinc] || 0) + 1);
-      openCart();
+      keepSheetScroll(openCart);
       renderMenu();
     } else if (btn.dataset.cdec) {
       setQty(btn.dataset.cdec, (state.cart[btn.dataset.cdec] || 0) - 1);
-      openCart();
+      keepSheetScroll(openCart);
       renderMenu();
     } else if (btn.dataset.suggest) {
       const product = productById(btn.dataset.suggest);
@@ -2752,7 +2760,7 @@ function openCart() {
         openVariants(product.id);
       } else {
         setQty(cartKey(product.id), (state.cart[cartKey(product.id)] || 0) + 1);
-        openCart();
+        keepSheetScroll(openCart);
         renderMenu();
         addedFeedback(product.name);
       }
