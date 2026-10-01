@@ -214,7 +214,7 @@ function bulkHintHtml(item, inCart = 0) {
 }
 
 function noCheddarToggleHtml(key, on) {
-  return `<button type="button" class="chill-toggle ${on ? 'on' : ''}" data-nocheddar="${key}">${on ? '✅' : '⬜'} 🧀 Retirar o cheddar</button>`;
+  return `<button type="button" class="chill-toggle ${on ? 'on' : ''}" data-nocheddar="${key}">${on ? '❌' : '⬜'} 🧀 Retirar o cheddar</button>`;
 }
 
 function toggleNoCheddar(key) {
