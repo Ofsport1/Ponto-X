@@ -433,7 +433,7 @@ function pontoxScrollVideoHeroHtml() {
 
   return `<section class="pontox-scroll-hero" aria-label="Montagem do hambúrguer">
     <div class="pontox-scroll-hero-sticky">
-      <video class="pontox-scroll-video" src="assets/burger-assembly.mp4#t=0.001" poster="assets/burger-assembly-poster.jpg" muted playsinline preload="auto"></video>
+      <video class="pontox-scroll-video" src="assets/burger-assembly.mp4#t=0.8" poster="assets/burger-assembly-poster.jpg" muted playsinline preload="auto"></video>
       <div class="pontox-scroll-hero-copy">
         ${special ? `<div class="pontox-scroll-hero-product">
           <span class="pontox-scroll-hero-badge">★ Especial da casa</span>
@@ -627,6 +627,8 @@ function armScrollVideo() {
   if (video.readyState >= 2) updateScrollVideo();
 }
 
+const HERO_VIDEO_START = 0.8;
+const HERO_VIDEO_END = 6.2;
 let heroScrollTicking = false;
 function updateScrollVideo() {
   const section = document.querySelector('.pontox-scroll-hero');
@@ -635,10 +637,11 @@ function updateScrollVideo() {
   const rect = section.getBoundingClientRect();
   const total = rect.height - window.innerHeight;
   const progress = total > 0 ? Math.min(1, Math.max(0, -rect.top / total)) : 0;
-  // Encurta o trecho exibido em 1,5s (sem reencodar o arquivo): o scroll nunca chega
-  // aos últimos 1,5 segundos do vídeo de verdade.
-  const effectiveDuration = Math.max(0, video.duration - 1.5);
-  video.currentTime = progress * effectiveDuration;
+  // A rolagem percorre só o trecho com movimento (sem reencodar o arquivo): antes de 0,8s é
+  // só o pão parado e depois de 6,2s o lanche já está pronto e a câmera fica parada.
+  const start = Math.min(HERO_VIDEO_START, video.duration);
+  const end = Math.min(HERO_VIDEO_END, video.duration);
+  video.currentTime = start + progress * Math.max(0, end - start);
 }
 
 window.addEventListener('scroll', () => {
