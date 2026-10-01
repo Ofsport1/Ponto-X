@@ -1555,6 +1555,7 @@ function productFormHtml() {
       <label class="check"><input type="checkbox" name="featured" ${product.featured ? 'checked' : ''} /> ⭐ Mostrar em "Mais Vendidos" (topo do cardápio)</label>
       <label class="check"><input type="checkbox" name="suggest" ${product.suggest ? 'checked' : ''} /> 🧊 Sugerir no carrinho ("Leve junto")</label>
       <label class="check"><input type="checkbox" name="is_addon" ${product.is_addon ? 'checked' : ''} /> 🔥 Turbine seu lanche (adicional: aparece só dentro dos lanches, fora do cardápio geral)</label>
+      <label class="check"><input type="checkbox" name="removable_cheddar" ${product.removable_cheddar ? 'checked' : ''} /> 🧀 Vem com cheddar (o cliente pode marcar "Retirar o cheddar")</label>
       ${storeFeatures().weight !== false ? `<label class="check"><input type="checkbox" name="sold_by_weight" ${product.sold_by_weight ? 'checked' : ''} /> ⚖️ Vendido por kg (o cliente vê "preço estimado" e a equipe ajusta o valor na balança)</label>
       <div class="field"><label>⚖️ Preço do quilo (R$) — aparece no cardápio como "R$ X /kg"</label><input name="kg_price" inputmode="decimal" placeholder="Ex.: 17,99" value="${product.kg_price_cents != null ? centsToInput(product.kg_price_cents) : ''}" /></div>` : ''}
       <div class="row">
@@ -2102,6 +2103,7 @@ async function submitProductForm(form) {
     featured: form.featured.checked,
     suggest: form.suggest.checked,
     is_addon: Boolean(form.is_addon?.checked),
+    removable_cheddar: Boolean(form.removable_cheddar?.checked),
     sold_by_weight: Boolean(form.sold_by_weight?.checked),
     kg_price_cents: optionalCents(form.kg_price?.value || '') ?? null,
     ...(variantsPayload !== undefined ? { variants: variantsPayload } : {}),

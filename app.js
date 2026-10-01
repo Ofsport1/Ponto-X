@@ -32,6 +32,7 @@ const storeKey = name => storageSlug === 'garatucaia'
   : `${storageSlug}-${name}`;
 const CART_KEY = storeKey('cart');
 const CHILL_KEY = storeKey('chill'); // engradados que o cliente quer gelados (chave do carrinho → true)
+const NO_CHEDDAR_KEY = storeKey('no-cheddar'); // itens que o cliente pediu sem cheddar (chave do carrinho → true)
 const LAST_ORDER_KEY = storeKey('last-order');
 const CUSTOMER_KEY = storeKey('customer');
 const ORDERS_KEY = storeKey('orders');
@@ -75,6 +76,7 @@ const state = {
   addons: [],
   cart: loadJson(CART_KEY, {}),
   chill: loadJson(CHILL_KEY, {}),
+  noCheddar: loadJson(NO_CHEDDAR_KEY, {}),
   search: '',
   insights: null, // VIP, presente de aniversário e "hora de repor" do cliente deste aparelho
   vip: false,
@@ -211,6 +213,16 @@ function bulkHintHtml(item, inCart = 0) {
   return `<span class="bulk-hint">🍻 Levando ${bulk.qty}: <strong>${money(bulk.price)}</strong> (sai ${money(Math.round(bulk.price / bulk.qty))} cada)${inCart && missing ? ` · faltam ${missing} pro preço de engradado` : ''}</span>`;
 }
 
+function noCheddarToggleHtml(key, on) {
+  return `<button type="button" class="chill-toggle ${on ? 'on' : ''}" data-nocheddar="${key}">${on ? '✅' : '⬜'} 🧀 Retirar o cheddar</button>`;
+}
+
+function toggleNoCheddar(key) {
+  if (state.noCheddar[key]) delete state.noCheddar[key];
+  else state.noCheddar[key] = true;
+  saveJson(NO_CHEDDAR_KEY, state.noCheddar);
+}
+
 // Engradado gelado: quantos engradados podem ir gelados (mesma regra do servidor).
 function chillInfo(entry) {
   if (storeFeatures().chill === false) return null;
@@ -233,7 +245,10 @@ function cartEntries() {
       const chill = chillInfo(entry);
       const chillTotal = chill?.on ? chill.packs * chill.fee : 0;
 
-      return { ...entry, line, chill, total: line.total + chillTotal };
+      // Vem com cheddar por padrão; o cliente pode pedir para retirar (não muda o preço).
+      const noCheddar = entry.product.removable_cheddar ? Boolean(state.noCheddar[entry.key]) : null;
+
+      return { ...entry, line, chill, noCheddar, total: line.total + chillTotal };
     });
 }
 
@@ -893,6 +908,7 @@ function openProduct(productId) {
           : '<span class="muted">Escolha a quantidade abaixo</span>'}
       </span>
     </div>
+    ${product.removable_cheddar ? `<p style="margin:10px 0 0">${noCheddarToggleHtml(key, Boolean(state.noCheddar[key]))}</p>` : ''}
     ${additionalsHtml}
     <div class="sheet-product-actions">
       ${qty === 0 ? `<button class="btn primary block" data-inc="${key}" style="margin-top:16px">Adicionar</button>` : ''}
@@ -920,6 +936,8 @@ function openProduct(productId) {
       if (!before) addedFeedback(resolveCartKey(btn.dataset.ainc)?.name);
     } else if (btn.dataset.adec) {
       setQty(btn.dataset.adec, (state.cart[btn.dataset.adec] || 0) - 1);
+    } else if (btn.dataset.nocheddar) {
+      toggleNoCheddar(btn.dataset.nocheddar);
     } else {
       return;
     }
@@ -2100,13 +2118,15 @@ async function addToActiveOrder(button) {
   try {
     const r = await api(`/api/orders/${order.id}/items`, {
       method: 'POST',
-      body: JSON.stringify({ items: cartEntries().map(e => ({ product_id: e.product.id, variant_id: e.variant?.id || null, quantity: e.qty, chilled: Boolean(e.chill?.on) })) }),
+      body: JSON.stringify({ items: cartEntries().map(e => ({ product_id: e.product.id, variant_id: e.variant?.id || null, quantity: e.qty, chilled: Boolean(e.chill?.on), no_cheddar: e.noCheddar === true })) }),
     });
 
     state.cart = {};
     saveJson(CART_KEY, state.cart);
     state.chill = {};
     saveJson(CHILL_KEY, state.chill);
+    state.noCheddar = {};
+    saveJson(NO_CHEDDAR_KEY, state.noCheddar);
     closeSheet();
     history.pushState(null, '', `?pedido=${order.id}`);
     showOrder(order.id);
@@ -2664,11 +2684,12 @@ function openCart() {
 
   const sheet = openSheet(`
     <div class="sheet-head"><h2>Seu carrinho</h2><button type="button" class="clear-cart" id="clear-cart">Limpar carrinho</button><button data-close aria-label="Fechar">✕</button></div>
-    ${entries.map(({ key, name, price, qty, line, bulk, chill, total, product, variant }) => `
+    ${entries.map(({ key, name, price, qty, line, bulk, chill, noCheddar, total, product, variant }) => `
       <div class="cart-line">
         ${cartPhotoHtml(product, variant)}
         <span class="name">${product?.is_addon ? '🔥 Adicional: ' : ''}${escapeHtml(name)}<br><span class="muted">${money(price)}${qty > 1 || chill?.on ? ` · ${money(total)}` : ''}${storeFeatures().weight !== false && product?.sold_by_weight ? ' · ⚖️ estimado' : ''}</span>
           ${line.packs ? `<br><span class="bulk-hint">🍻 ${line.packs} engradado${line.packs > 1 ? 's' : ''} · economia de ${money(line.saved)}</span>` : bulk ? `<br><span class="bulk-hint">faltam ${bulk.qty - (qty % bulk.qty)} pro preço de engradado</span>` : ''}
+          ${noCheddar !== null ? `<br>${noCheddarToggleHtml(key, noCheddar)}` : ''}
           ${chill ? `<br><button type="button" class="chill-toggle ${chill.on ? 'on' : ''}" data-chill="${key}">${chill.on ? '✅' : '⬜'} 🧊 Engradado gelado (+ ${money(chill.fee)}${chill.packs > 1 ? ` cada · ${chill.packs} engradados` : ''})</button>` : ''}</span>
         <span class="qty">
           <button data-cdec="${key}">−</button><span>${qty}</span><button data-cinc="${key}">+</button>
@@ -2700,9 +2721,14 @@ function openCart() {
       saveJson(CART_KEY, state.cart);
       state.chill = {};
       saveJson(CHILL_KEY, state.chill);
+      state.noCheddar = {};
+      saveJson(NO_CHEDDAR_KEY, state.noCheddar);
       closeSheet();
       renderMenu();
       toast('Carrinho limpo.');
+    } else if (btn.dataset.nocheddar) {
+      toggleNoCheddar(btn.dataset.nocheddar);
+      openCart();
     } else if (btn.dataset.chill) {
       if (state.chill[btn.dataset.chill]) delete state.chill[btn.dataset.chill];
       else state.chill[btn.dataset.chill] = true;
@@ -3799,7 +3825,7 @@ function openCheckout() {
       marketing_opt_in: form.opt_in?.checked === true,
       change_for_cents: cashInvolved && changeRaw ? Math.round(Number(changeRaw) * 100) : null,
       notes: form.notes.value,
-      items: cartEntries().map(e => ({ product_id: e.product.id, variant_id: e.variant?.id || null, quantity: e.qty, chilled: Boolean(e.chill?.on) })),
+      items: cartEntries().map(e => ({ product_id: e.product.id, variant_id: e.variant?.id || null, quantity: e.qty, chilled: Boolean(e.chill?.on), no_cheddar: e.noCheddar === true })),
     };
 
     if (payload.change_for_cents !== null && !Number.isFinite(payload.change_for_cents)) {
@@ -3832,6 +3858,8 @@ function openCheckout() {
       saveJson(CART_KEY, state.cart);
       state.chill = {};
       saveJson(CHILL_KEY, state.chill);
+      state.noCheddar = {};
+      saveJson(NO_CHEDDAR_KEY, state.noCheddar);
       closeSheet();
       history.pushState(null, '', `?pedido=${result.id}`);
       showOrder(result.id, true);

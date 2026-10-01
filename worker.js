@@ -968,7 +968,7 @@ async function handleMenu(request, env) {
   const [response, today] = await Promise.all([
     supabaseFetch(
       env,
-      `products?select=id,name,description,category,price_cents,bulk_qty,bulk_price_cents,chill_fee_cents,promo_price_cents,promo_starts_at,promo_ends_at,promo_weekdays,created_at,image_url,featured,featured_order,suggest,available,sold_by_weight,kg_price_cents,is_addon,product_variants(id,name,price_cents,bulk_qty,bulk_price_cents,available,sort_order,image_url)&store_id=eq.${store.id}&order=sort_order.asc,name.asc`
+      `products?select=id,name,description,category,price_cents,bulk_qty,bulk_price_cents,chill_fee_cents,promo_price_cents,promo_starts_at,promo_ends_at,promo_weekdays,created_at,image_url,featured,featured_order,suggest,available,sold_by_weight,kg_price_cents,is_addon,removable_cheddar,product_variants(id,name,price_cents,bulk_qty,bulk_price_cents,available,sort_order,image_url)&store_id=eq.${store.id}&order=sort_order.asc,name.asc`
     ),
     todayStats(env, store).catch(() => null),
   ]);
@@ -1629,6 +1629,7 @@ async function priceCartItems(env, store, rawList, fromAdmin) {
     }
 
     const chilled = item?.chilled === true;
+    const noCheddar = item?.no_cheddar === true;
     // Produto por kg: o painel pode mandar o valor pesado na balança (o total da linha).
     const weighed = fromAdmin && item?.weighed_cents != null ? toCents(item.weighed_cents) : null;
     if (fromAdmin && item?.weighed_cents != null && (!weighed || weighed > WEIGHED_MAX_CENTS)) {
@@ -1641,6 +1642,7 @@ async function priceCartItems(env, store, rawList, fromAdmin) {
       variantId,
       quantity: (current?.quantity || 0) + qty,
       chilled: Boolean(current?.chilled) || chilled,
+      noCheddar: Boolean(current?.noCheddar) || noCheddar,
       weighed: weighed ?? current?.weighed ?? null,
     });
   }
@@ -1653,7 +1655,7 @@ async function priceCartItems(env, store, rawList, fromAdmin) {
   const ids = [...new Set([...quantities.values()].map(q => q.productId))].join(',');
   const productsResponse = await supabaseFetch(
     env,
-    `products?select=id,name,category,price_cents,bulk_qty,bulk_price_cents,cost_cents,chill_fee_cents,promo_price_cents,promo_starts_at,promo_ends_at,promo_weekdays,available,inactive_reason,sold_by_weight,is_addon,product_variants(id,name,price_cents,bulk_qty,bulk_price_cents,cost_cents,available)&store_id=eq.${store.id}&id=in.(${ids})`
+    `products?select=id,name,category,price_cents,bulk_qty,bulk_price_cents,cost_cents,chill_fee_cents,promo_price_cents,promo_starts_at,promo_ends_at,promo_weekdays,available,inactive_reason,sold_by_weight,is_addon,removable_cheddar,product_variants(id,name,price_cents,bulk_qty,bulk_price_cents,cost_cents,available)&store_id=eq.${store.id}&id=in.(${ids})`
   );
   const products = await readJsonResponse(productsResponse, 'Não foi possível validar os produtos.');
 
@@ -1669,7 +1671,7 @@ async function priceCartItems(env, store, rawList, fromAdmin) {
   let subtotal = 0;
   const unavailable = json({ error: 'Algum produto do carrinho não está mais disponível. Atualize a página.' }, 409);
 
-  for (const { productId, variantId, quantity, chilled, weighed } of quantities.values()) {
+  for (const { productId, variantId, quantity, chilled, noCheddar, weighed } of quantities.values()) {
     const product = byId.get(productId);
 
     if (!product || (!fromAdmin && !product.available)) return { response: unavailable };
@@ -1711,6 +1713,7 @@ async function priceCartItems(env, store, rawList, fromAdmin) {
     const notes = [
       packs ? `${packs} engradado${packs > 1 ? 's' : ''} de ${priceSource.bulk_qty}` : '',
       chillPacks ? `${chillPacks > 1 ? `${chillPacks} ` : ''}GELADO${chillPacks > 1 ? 'S' : ''}` : '',
+      noCheddar && product.removable_cheddar ? 'SEM CHEDDAR' : '',
     ].filter(Boolean).join(' · ');
 
     items.push({
@@ -2313,7 +2316,7 @@ function pickFields(value, fields) {
 
 function productForRole(product, session) {
   if (session?.urole === 'admin') return product;
-  const fields = 'id,name,description,category,price_cents,bulk_qty,bulk_price_cents,chill_fee_cents,promo_price_cents,promo_starts_at,promo_ends_at,promo_weekdays,created_at,image_url,available,inactive_reason,inactive_since,featured,featured_order,suggest,sort_order,sold_by_weight,kg_price_cents,is_addon';
+  const fields = 'id,name,description,category,price_cents,bulk_qty,bulk_price_cents,chill_fee_cents,promo_price_cents,promo_starts_at,promo_ends_at,promo_weekdays,created_at,image_url,available,inactive_reason,inactive_since,featured,featured_order,suggest,sort_order,sold_by_weight,kg_price_cents,is_addon,removable_cheddar';
   return { ...pickFields(product, fields), variants: (product.variants || []).map(v => pickFields(v, fields)) };
 }
 
@@ -2970,6 +2973,10 @@ async function auditProductChanges(env, session, before, after) {
 
   for (const v of oldVariants.values()) changes.push(`removeu a opção "${v.name}"`);
 
+  if (Boolean(before.removable_cheddar) !== Boolean(after.removable_cheddar)) {
+    changes.push(after.removable_cheddar ? 'ligou "Retirar o cheddar"' : 'desligou "Retirar o cheddar"');
+  }
+
   if (!changes.length) return;
 
   const priceChanged = changes.some(c => c.includes('→') && c.includes('R$'));
@@ -3043,6 +3050,11 @@ function readProductFields(body, partial) {
   // Complemento: aparece em "Turbine seu lanche" dentro dos hambúrgueres.
   if (body.is_addon !== undefined) {
     fields.is_addon = Boolean(body.is_addon);
+  }
+
+  // Vem com cheddar por cima: o cliente pode pedir para retirar (sem mudar o preço).
+  if (body.removable_cheddar !== undefined) {
+    fields.removable_cheddar = Boolean(body.removable_cheddar);
   }
 
   // Destaque: aparece também na seção "Mais Vendidos", no topo do cardápio.

@@ -991,3 +991,7 @@ alter table public.stores add column if not exists delivery_rules jsonb not null
 -- conter "adicional". Migra quem já usava essa convenção, sem perder nenhum já cadastrado.
 alter table products add column if not exists is_addon boolean not null default false;
 update products set is_addon = true where is_addon = false and name ilike '%adicional%';
+
+-- 2026-10-01: "Retirar o cheddar". Produto que vem com cheddar por cima (batata dos combos,
+-- Batata Maluca): o cliente pode pedir sem, e o item sai no pedido como "(SEM CHEDDAR)".
+alter table products add column if not exists removable_cheddar boolean not null default false;
