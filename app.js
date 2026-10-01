@@ -2261,6 +2261,23 @@ function refreshCartUi() {
   }
 
   slot.innerHTML = cartBarHtml();
+  prefetchCartSuggestions();
+}
+
+// Deixa as fotos do "Complete seu pedido" já baixadas antes de o carrinho abrir (senão elas
+// aparecem uma a uma e piscam). São no máximo 6 fotos, as mesmas que o carrinho vai sortear.
+const prefetchedPhotos = new Set();
+
+function prefetchCartSuggestions() {
+  if (!cartCount()) return;
+  const { items = [], ice } = forgottenSuggestions();
+  for (const p of [...items, ice].filter(Boolean)) {
+    if (!p.image_url || prefetchedPhotos.has(p.image_url)) continue;
+    prefetchedPhotos.add(p.image_url);
+    const img = new Image();
+    img.decoding = 'async';
+    img.src = p.image_url;
+  }
 }
 
 // O cabeçalho e a busca são montados uma vez só (para a busca não perder o foco
@@ -2309,6 +2326,7 @@ function renderMenu() {
   armScrollVideo();
   document.getElementById('menu-body').innerHTML = menuBodyHtml();
   document.getElementById('cart-slot').innerHTML = cartBarHtml();
+  prefetchCartSuggestions();
   armProductReveal();
   armProductShowcases();
 }
@@ -3112,6 +3130,7 @@ function forgottenSuggestions() {
 async function loadRecommendations() {
   try {
     state.recs = await api('/api/recommendations');
+    prefetchCartSuggestions();
 
     // A vitrine do modo ressaca depende disso: redesenha se estiver no cardápio.
     if (isRestMorning() && document.getElementById('menu-body') && !state.search.trim()) {
@@ -3123,7 +3142,7 @@ async function loadRecommendations() {
 function suggestionButtonHtml(p) {
   return `
     <button type="button" class="leve-item" data-suggest="${p.id}">
-      ${p.image_url ? `<img src="${escapeHtml(p.image_url)}" alt="" loading="lazy" />` : '<span class="no-photo">🛒</span>'}
+      ${p.image_url ? `<img src="${escapeHtml(p.image_url)}" alt="" decoding="async" />` : '<span class="no-photo">🛒</span>'}
       <span class="leve-name">${escapeHtml(p.name)}</span>
       <span class="leve-price">${p.variants.length ? 'a partir de ' : ''}${money(p.variants.length ? Math.min(...p.variants.map(v => v.price_cents)) : (promoNow(p)?.price_cents ?? p.price_cents))}</span>
       <span class="leve-add">+ Adicionar</span>
