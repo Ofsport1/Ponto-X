@@ -786,3 +786,12 @@ html, body, button, a, input, select, textarea, label { touch-action: manipulati
 .kg-price { font-size: 22px; font-weight: 800; color: var(--gold); margin: 4px 0 0; }
 .kg-price small { font-size: 14px; color: var(--muted); font-weight: 400; }
 .btn-finish { border-color: var(--success); color: var(--success); }
+
+/* Lanche com adicionais ("Turbine seu lanche") */
+.turbine { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.turbine h3 { margin: 0 0 8px; font-size: 15px; }
+.lanche-confirm { position: sticky; bottom: calc(-20px - env(safe-area-inset-bottom)); display: flex; gap: 10px; align-items: center; margin: 16px -16px 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: var(--card); border-top: 1px solid var(--line); }
+.cart-addons { display: block; margin: 4px 0 2px; font-size: 12px; color: var(--muted); text-transform: uppercase; line-height: 1.45; }
+.cart-addons span { display: block; }
+.cart-addons .cart-addons-title { font-weight: 700; }
+.cart-addons b { font-weight: 600; color: var(--gold); }

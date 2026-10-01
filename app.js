@@ -141,8 +141,27 @@ async function api(path, options = {}) {
 /* ---------------- Carrinho ---------------- */
 
 // Chave do carrinho: "produtoId:variacaoId" (variação vazia = produto sem variações).
-function cartKey(productId, variantId) {
-  return `${productId}:${variantId || ''}`;
+function cartKey(productId, variantId, addons) {
+  const spec = Object.entries(addons || {})
+    .filter(([, qty]) => qty > 0)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([id, qty]) => `${id}*${qty}`)
+    .join(',');
+  return spec ? `${productId}:${variantId || ''}:${spec}` : `${productId}:${variantId || ''}`;
+}
+
+// Adicionais de uma linha do carrinho (por unidade do lanche). null = algum não existe mais.
+function addonsOfKey(spec) {
+  if (!spec) return [];
+  const list = spec.split(',').map(part => {
+    const [id, qty] = part.split('*');
+    return { product: state.addons.find(a => a.id === id && a.available !== false), qty: Number(qty) };
+  });
+  return list.every(a => a.product && a.qty > 0) ? list : null;
+}
+
+function addonsTotal(addons) {
+  return (addons || []).reduce((sum, a) => sum + a.product.price_cents * a.qty, 0);
 }
 
 function productById(id) {
@@ -159,14 +178,25 @@ function isLanche(product) {
   return Boolean(product) && !product.is_addon && /hamburg|lanche/.test(normalizeText(product.category));
 }
 
+function lancheWithAddons(product) {
+  return isLanche(product) && !product.variants.length && state.addons.some(a => a.available !== false);
+}
+
 function resolveCartKey(key) {
-  const [productId, variantId] = key.split(':');
+  const [productId, variantId, addonSpec] = key.split(':');
   const product = productById(productId);
 
   if (!product) return null;
 
-  // Esgotado não fica no carrinho.
-  if (product.available === false) return null;
+  // Esgotado não fica no carrinho. Adicional só existe dentro de um lanche.
+  if (product.available === false || product.is_addon) return null;
+
+  if (addonSpec) {
+    const addons = isLanche(product) && !product.variants.length ? addonsOfKey(addonSpec) : null;
+    if (!addons) return null;
+    const base = promoNow(product)?.price_cents ?? product.price_cents;
+    return { product, variant: null, addons, price: base + addonsTotal(addons), bulk: null, name: product.name };
+  }
 
   if (product.variants.length) {
     const variant = product.variants.find(v => v.id === variantId && v.available !== false);
@@ -451,6 +481,9 @@ function productHtml(product) {
       ? (count ? `Monte seu açaí (${count})` : 'Monte seu açaí')
       : (count ? `Escolher (${count})` : 'Escolher');
     action = `<button class="btn small primary" data-choose="${product.id}">${chooseLabel}</button>`;
+  } else if (lancheWithAddons(product)) {
+    const count = productCartCount(product.id);
+    action = `<button class="btn small primary" data-choose="${product.id}">${count ? `Adicionar (${count})` : 'Adicionar'}</button>`;
   } else {
     const key = cartKey(product.id);
     const qty = state.cart[key] || 0;
@@ -818,8 +851,6 @@ function openVariants(productId) {
 
   if (!product) return;
 
-  const additionalsHtml = isLanche(product) ? getAdditionalsHtml() : '';
-
   const sheet = openSheet(`
     <div class="sheet-head"><h2>${escapeHtml(product.name)}</h2><button data-close aria-label="Fechar">✕</button></div>
     ${product.image_url ? `<img class="variant-photo" src="${escapeHtml(product.image_url)}" alt="" />` : ''}
@@ -844,7 +875,6 @@ function openVariants(productId) {
           </span>
         </div>`;
     }).join('')}
-    ${additionalsHtml}
     <div class="sheet-product-actions">
       <button class="btn block" data-close style="margin-top:16px">Continuar comprando</button>
     </div>
@@ -863,12 +893,6 @@ function openVariants(productId) {
       setQty(btn.dataset.vdec, (state.cart[btn.dataset.vdec] || 0) - 1);
     } else if (btn.dataset.vbulk) {
       setQty(btn.dataset.vbulk, (state.cart[btn.dataset.vbulk] || 0) + Number(btn.dataset.bulkQty));
-    } else if (btn.dataset.ainc) {
-      const before = state.cart[btn.dataset.ainc] || 0;
-      setQty(btn.dataset.ainc, before + 1);
-      if (!before) addedFeedback(resolveCartKey(btn.dataset.ainc)?.name);
-    } else if (btn.dataset.adec) {
-      setQty(btn.dataset.adec, (state.cart[btn.dataset.adec] || 0) - 1);
     } else {
       return;
     }
@@ -888,10 +912,11 @@ function openProduct(productId) {
   if (product.variants.length) return openVariants(productId);
   if (product.available === false) return openSimilar(productId);
 
+  if (lancheWithAddons(product)) return openLanche(productId);
+
   const promo = promoNow(product);
   const key = cartKey(product.id);
   const qty = state.cart[key] || 0;
-  const additionalsHtml = isLanche(product) ? getAdditionalsHtml() : '';
 
   const sheet = openSheet(`
     <div class="sheet-head"><h2>${escapeHtml(product.name)}</h2><button data-close aria-label="Fechar">✕</button></div>
@@ -909,7 +934,6 @@ function openProduct(productId) {
       </span>
     </div>
     ${product.removable_cheddar ? `<p style="margin:10px 0 0">${noCheddarToggleHtml(key, Boolean(state.noCheddar[key]))}</p>` : ''}
-    ${additionalsHtml}
     <div class="sheet-product-actions">
       ${qty === 0 ? `<button class="btn primary block" data-inc="${key}" style="margin-top:16px">Adicionar</button>` : ''}
       <button class="btn block" data-close style="margin-top:8px">Continuar comprando</button>
@@ -930,12 +954,6 @@ function openProduct(productId) {
     } else if (btn.dataset.bulk) {
       setQty(btn.dataset.bulk, (state.cart[btn.dataset.bulk] || 0) + Number(btn.dataset.bulkQty));
       addedFeedback(`${btn.dataset.bulkQty} un.`);
-    } else if (btn.dataset.ainc) {
-      const before = state.cart[btn.dataset.ainc] || 0;
-      setQty(btn.dataset.ainc, before + 1);
-      if (!before) addedFeedback(resolveCartKey(btn.dataset.ainc)?.name);
-    } else if (btn.dataset.adec) {
-      setQty(btn.dataset.adec, (state.cart[btn.dataset.adec] || 0) - 1);
     } else if (btn.dataset.nocheddar) {
       toggleNoCheddar(btn.dataset.nocheddar);
     } else {
@@ -947,28 +965,78 @@ function openProduct(productId) {
   });
 }
 
-function getAdditionalsHtml() {
-  const additionals = state.addons.filter(p => p.available !== false);
+// Lanche: o cliente escolhe a quantidade e os adicionais ("Turbine seu lanche") e só depois
+// adiciona. Cada combinação vira uma linha própria no carrinho, com os adicionais embaixo.
+function openLanche(productId) {
+  state.lancheDraft = { productId, qty: 1, addons: {} };
+  renderLancheSheet();
+}
 
-  if (!additionals.length) return '';
+function renderLancheSheet() {
+  const draft = state.lancheDraft;
+  const product = productById(draft?.productId);
 
-  return `
-    <div style="margin-top:24px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.2)">
-      <h3 style="margin:0 0 12px;font-size:14px;font-weight:600">🔥 Turbine seu lanche</h3>
-      ${additionals.map(addon => {
-        const key = cartKey(addon.id);
-        const qty = state.cart[key] || 0;
+  if (!product) return closeSheet();
+
+  const promo = promoNow(product);
+  const base = promo ? promo.price_cents : product.price_cents;
+  const addons = state.addons.filter(a => a.available !== false);
+  const unit = base + addons.reduce((sum, a) => sum + a.price_cents * (draft.addons[a.id] || 0), 0);
+  const inCart = productCartCount(product.id);
+
+  const sheet = openSheet(`
+    <div class="sheet-head"><h2>${escapeHtml(product.name)}</h2><button data-close aria-label="Fechar">✕</button></div>
+    ${product.image_url ? `<img class="variant-photo" src="${escapeHtml(product.image_url)}" alt="" />` : ''}
+    ${product.description ? `<p class="muted">${escapeHtml(product.description)}</p>` : ''}
+    <div class="deal-row">${dealHtml(product, promo)}</div>
+    <p class="price" style="margin:4px 0 0">${promo ? `<s class="old-price">${money(product.price_cents)}</s> <span class="promo-price">${money(promo.price_cents)}</span>` : money(base)}</p>
+    <div class="turbine">
+      <h3>🔥 Turbine seu lanche</h3>
+      ${addons.map(addon => {
+        const qty = draft.addons[addon.id] || 0;
         return `
           <div class="cart-line">
-            <span class="name">${escapeHtml(addon.name)}<br><span class="price">${money(addon.price_cents)}</span></span>
-            <span style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
-              ${qty
-                ? `<span class="qty"><button data-adec="${key}">−</button><span>${qty}</span><button data-ainc="${key}">+</button></span>`
-                : `<button class="btn small primary" data-ainc="${key}">Adicionar</button>`}
-            </span>
+            <span class="name">${escapeHtml(addon.name)}<br><span class="price">+ ${money(addon.price_cents)}</span></span>
+            ${qty
+              ? `<span class="qty"><button data-adec="${addon.id}" aria-label="Diminuir">−</button><span>${qty}</span><button data-ainc="${addon.id}" aria-label="Aumentar">+</button></span>`
+              : `<button class="btn small" data-ainc="${addon.id}">+ Adicionar</button>`}
           </div>`;
       }).join('')}
-    </div>`;
+    </div>
+    <div class="lanche-confirm">
+      <span class="qty"><button data-ldec aria-label="Diminuir">−</button><span>${draft.qty}</span><button data-linc aria-label="Aumentar">+</button></span>
+      <button class="btn primary" data-ladd style="flex:1">Adicionar · ${money(unit * draft.qty)}</button>
+    </div>
+    ${inCart ? `<p class="muted" style="margin:8px 0 0;font-size:13px;text-align:center">Você já tem ${inCart} no carrinho.</p>` : ''}
+  `);
+
+  sheet.addEventListener('click', event => {
+    const btn = event.target.closest('button');
+
+    if (!btn) return;
+
+    if (btn.dataset.ainc) {
+      draft.addons[btn.dataset.ainc] = Math.min((draft.addons[btn.dataset.ainc] || 0) + 1, 10);
+    } else if (btn.dataset.adec) {
+      draft.addons[btn.dataset.adec] = Math.max((draft.addons[btn.dataset.adec] || 0) - 1, 0);
+    } else if ('linc' in btn.dataset) {
+      draft.qty = Math.min(draft.qty + 1, 99);
+    } else if ('ldec' in btn.dataset) {
+      draft.qty = Math.max(draft.qty - 1, 1);
+    } else if ('ladd' in btn.dataset) {
+      const key = cartKey(product.id, null, draft.addons);
+      setQty(key, (state.cart[key] || 0) + draft.qty);
+      state.lancheDraft = null;
+      closeSheet();
+      refreshCartUi();
+      addedFeedback(product.name);
+      return;
+    } else {
+      return;
+    }
+
+    keepSheetScroll(renderLancheSheet);
+  });
 }
 
 const FEATURED_TITLE = '⭐ Mais Vendidos';
@@ -2118,7 +2186,7 @@ async function addToActiveOrder(button) {
   try {
     const r = await api(`/api/orders/${order.id}/items`, {
       method: 'POST',
-      body: JSON.stringify({ items: cartEntries().map(e => ({ product_id: e.product.id, variant_id: e.variant?.id || null, quantity: e.qty, chilled: Boolean(e.chill?.on), no_cheddar: e.noCheddar === true })) }),
+      body: JSON.stringify({ items: cartEntries().map(e => ({ product_id: e.product.id, variant_id: e.variant?.id || null, quantity: e.qty, chilled: Boolean(e.chill?.on), no_cheddar: e.noCheddar === true, addons: (e.addons || []).map(a => ({ product_id: a.product.id, quantity: a.qty })) })) }),
     });
 
     state.cart = {};
@@ -2238,14 +2306,13 @@ app.addEventListener('click', event => {
     return;
   }
 
-  if (target.dataset.inc) {
+  if (target.dataset.inc && lancheWithAddons(productById(target.dataset.inc.split(':')[0])) && !state.cart[target.dataset.inc]) {
+    openProduct(target.dataset.inc.split(':')[0]);
+  } else if (target.dataset.inc) {
     const before = state.cart[target.dataset.inc] || 0;
     setQty(target.dataset.inc, before + 1);
     refreshCartUi();
     if (!before) addedFeedback(resolveCartKey(target.dataset.inc)?.name);
-    // Lanche recém-adicionado: abre o detalhe para mostrar o "Turbine seu lanche".
-    const added = productById(target.dataset.inc.split(':')[0]);
-    if (!before && isLanche(added) && state.addons.some(a => a.available !== false)) openProduct(added.id);
   } else if (target.dataset.rate) {
     state.reviewRating = Number(target.dataset.rate);
     document.querySelectorAll('[data-rate]').forEach(b => b.classList.toggle('on', Number(b.dataset.rate) <= state.reviewRating));
@@ -2259,7 +2326,7 @@ app.addEventListener('click', event => {
     setQty(target.dataset.dec, (state.cart[target.dataset.dec] || 0) - 1);
     refreshCartUi();
   } else if (target.dataset.choose) {
-    openVariants(target.dataset.choose);
+    openProduct(target.dataset.choose);
   } else if (target.dataset.cat) {
     document.getElementById(`cat-${encodeURIComponent(target.dataset.cat)}`)
       ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -2730,10 +2797,10 @@ function openCart() {
 
   const sheet = openSheet(`
     <div class="sheet-head"><h2>Seu carrinho</h2><button type="button" class="clear-cart" id="clear-cart">Limpar carrinho</button><button data-close aria-label="Fechar">✕</button></div>
-    ${entries.map(({ key, name, price, qty, line, bulk, chill, noCheddar, total, product, variant }) => `
+    ${entries.map(({ key, name, price, qty, line, bulk, chill, noCheddar, total, product, variant, addons }) => `
       <div class="cart-line">
         ${cartPhotoHtml(product, variant)}
-        <span class="name">${product?.is_addon ? '🔥 Adicional: ' : ''}${escapeHtml(name)}<br><span class="muted">${money(price)}${qty > 1 || chill?.on ? ` · ${money(total)}` : ''}${storeFeatures().weight !== false && product?.sold_by_weight ? ' · ⚖️ estimado' : ''}</span>
+        <span class="name">${escapeHtml(name)}${addons?.length ? `<span class="cart-addons"><span class="cart-addons-title">Turbinado:</span>${addons.map(a => `<span>(${a.qty}) ${escapeHtml(a.product.name)} <b>(+${money(a.product.price_cents * a.qty)})</b></span>`).join('')}</span>` : '<br>'}<span class="muted">${money(price)}${qty > 1 || chill?.on ? ` · ${money(total)}` : ''}${storeFeatures().weight !== false && product?.sold_by_weight ? ' · ⚖️ estimado' : ''}</span>
           ${line.packs ? `<br><span class="bulk-hint">🍻 ${line.packs} engradado${line.packs > 1 ? 's' : ''} · economia de ${money(line.saved)}</span>` : bulk ? `<br><span class="bulk-hint">faltam ${bulk.qty - (qty % bulk.qty)} pro preço de engradado</span>` : ''}
           ${noCheddar !== null ? `<br>${noCheddarToggleHtml(key, noCheddar)}` : ''}
           ${chill ? `<br><button type="button" class="chill-toggle ${chill.on ? 'on' : ''}" data-chill="${key}">${chill.on ? '✅' : '⬜'} 🧊 Engradado gelado (+ ${money(chill.fee)}${chill.packs > 1 ? ` cada · ${chill.packs} engradados` : ''})</button>` : ''}</span>
@@ -3882,7 +3949,7 @@ function openCheckout() {
       marketing_opt_in: form.opt_in?.checked === true,
       change_for_cents: cashInvolved && changeRaw ? Math.round(Number(changeRaw) * 100) : null,
       notes: form.notes.value,
-      items: cartEntries().map(e => ({ product_id: e.product.id, variant_id: e.variant?.id || null, quantity: e.qty, chilled: Boolean(e.chill?.on), no_cheddar: e.noCheddar === true })),
+      items: cartEntries().map(e => ({ product_id: e.product.id, variant_id: e.variant?.id || null, quantity: e.qty, chilled: Boolean(e.chill?.on), no_cheddar: e.noCheddar === true, addons: (e.addons || []).map(a => ({ product_id: a.product.id, quantity: a.qty })) })),
     };
 
     if (payload.change_for_cents !== null && !Number.isFinite(payload.change_for_cents)) {

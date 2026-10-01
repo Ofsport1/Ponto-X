@@ -1635,11 +1635,25 @@ async function priceCartItems(env, store, rawList, fromAdmin) {
     if (fromAdmin && item?.weighed_cents != null && (!weighed || weighed > WEIGHED_MAX_CENTS)) {
       return { response: json({ error: 'Valor pesado inválido.' }, 400) };
     }
-    const key = `${item.product_id}:${variantId || ''}`;
+    // Adicionais do lanche ("Turbine seu lanche"): quantidade por unidade do lanche.
+    const rawAddons = Array.isArray(item?.addons) ? item.addons : [];
+    if (rawAddons.length > 10) return { response: json({ error: 'Adicionais demais num lanche.' }, 400) };
+    const addonMap = new Map();
+    for (const addon of rawAddons) {
+      const addonQty = Math.floor(Number(addon?.quantity));
+      if (!validUuid(addon?.product_id) || !Number.isFinite(addonQty) || addonQty < 1 || addonQty > 10) {
+        return { response: json({ error: 'Adicional inválido no carrinho.' }, 400) };
+      }
+      addonMap.set(addon.product_id, Math.min((addonMap.get(addon.product_id) || 0) + addonQty, 10));
+    }
+    const addons = [...addonMap].sort(([a], [b]) => a.localeCompare(b)).map(([productId, quantity]) => ({ productId, quantity }));
+
+    const key = `${item.product_id}:${variantId || ''}:${addons.map(a => `${a.productId}*${a.quantity}`).join(',')}`;
     const current = quantities.get(key);
     quantities.set(key, {
       productId: item.product_id,
       variantId,
+      addons,
       quantity: (current?.quantity || 0) + qty,
       chilled: Boolean(current?.chilled) || chilled,
       noCheddar: Boolean(current?.noCheddar) || noCheddar,
@@ -1652,7 +1666,7 @@ async function priceCartItems(env, store, rawList, fromAdmin) {
   }
 
   // Preço sempre vem do banco, nunca do navegador do cliente.
-  const ids = [...new Set([...quantities.values()].map(q => q.productId))].join(',');
+  const ids = [...new Set([...quantities.values()].flatMap(q => [q.productId, ...q.addons.map(a => a.productId)]))].join(',');
   const productsResponse = await supabaseFetch(
     env,
     `products?select=id,name,category,price_cents,bulk_qty,bulk_price_cents,cost_cents,chill_fee_cents,promo_price_cents,promo_starts_at,promo_ends_at,promo_weekdays,available,inactive_reason,sold_by_weight,is_addon,removable_cheddar,product_variants(id,name,price_cents,bulk_qty,bulk_price_cents,cost_cents,available)&store_id=eq.${store.id}&id=in.(${ids})`
@@ -1661,17 +1675,18 @@ async function priceCartItems(env, store, rawList, fromAdmin) {
 
   const byId = new Map(products.map(p => [p.id, p]));
 
-  // Adicional ("Turbine seu lanche") no site só vai junto com um lanche.
-  if (!fromAdmin && products.some(p => p.is_addon)
-    && !products.some(p => !p.is_addon && /hamburg|lanche/.test(String(p.category || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()))) {
-    return { response: json({ error: 'Adicional só pode ser pedido junto com um lanche.' }, 400) };
+  const isLancheProduct = p => !p.is_addon && /hamburg|lanche/.test(String(p.category || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase());
+
+  // Adicional ("Turbine seu lanche") no site só vai dentro de um lanche, nunca solto.
+  if (!fromAdmin && [...quantities.values()].some(q => byId.get(q.productId)?.is_addon)) {
+    return { response: json({ error: 'Adicional só pode ser pedido dentro de um lanche.' }, 400) };
   }
 
   const items = [];
   let subtotal = 0;
   const unavailable = json({ error: 'Algum produto do carrinho não está mais disponível. Atualize a página.' }, 409);
 
-  for (const { productId, variantId, quantity, chilled, noCheddar, weighed } of quantities.values()) {
+  for (const { productId, variantId, addons, quantity, chilled, noCheddar, weighed } of quantities.values()) {
     const product = byId.get(productId);
 
     if (!product || (!fromAdmin && !product.available)) return { response: unavailable };
@@ -1694,10 +1709,22 @@ async function priceCartItems(env, store, rawList, fromAdmin) {
       return { response: unavailable };
     }
 
+    // Adicionais: preço do banco, somado em cada unidade do lanche.
+    const addonLines = [];
+    if (addons.length) {
+      if (!isLancheProduct(product) || variant) return { response: json({ error: `"${product.name}" não aceita adicionais.` }, 400) };
+      for (const { productId: addonId, quantity: addonQty } of addons) {
+        const addon = byId.get(addonId);
+        if (!addon || !addon.is_addon || (!fromAdmin && !addon.available)) return { response: unavailable };
+        addonLines.push({ name: addon.name, quantity: addonQty, price: addon.price_cents });
+        unitPrice += addon.price_cents * addonQty;
+      }
+    }
+
     // Recursos comerciais são habilitados por loja; o servidor não confia no frontend.
     const features = storeFeatures(store);
     const priceSource = variant || product;
-    const { total: lineTotal, packs } = features.bulk
+    const { total: lineTotal, packs } = features.bulk && !addonLines.length
       ? linePrice(quantity, unitPrice, priceSource.bulk_qty, priceSource.bulk_price_cents)
       : { total: quantity * unitPrice, packs: 0 };
 
@@ -1711,6 +1738,7 @@ async function priceCartItems(env, store, rawList, fromAdmin) {
 
     const baseName = variant ? `${product.name} - ${variant.name}` : product.name;
     const notes = [
+      addonLines.map(a => `+ ${a.quantity > 1 ? `${a.quantity}x ` : ''}${a.name}`).join(', '),
       packs ? `${packs} engradado${packs > 1 ? 's' : ''} de ${priceSource.bulk_qty}` : '',
       chillPacks ? `${chillPacks > 1 ? `${chillPacks} ` : ''}GELADO${chillPacks > 1 ? 'S' : ''}` : '',
       noCheddar && product.removable_cheddar ? 'SEM CHEDDAR' : '',
@@ -3837,7 +3865,12 @@ async function handleEditOrderItemQty(request, env, orderId, itemId, session) {
   const priced = await priceCartItems(env, store, [{ product_id: item.product_id, variant_id: item.variant_id, quantity }], true);
   if (priced.response) return priced.response;
 
-  const repriced = priced.items[0];
+  // Item com adicionais ou "SEM CHEDDAR": mantém o que foi pedido (nome e preço por unidade já
+  // conferidos pelo servidor) e só muda a quantidade; recalcular pelo produto perderia os adicionais.
+  const customized = / \(\+ |SEM CHEDDAR/.test(item.product_name || '');
+  const repriced = customized
+    ? { ...priced.items[0], product_name: item.product_name, unit_price_cents: item.unit_price_cents, subtotal_cents: item.unit_price_cents * quantity }
+    : priced.items[0];
   const subtotal = order.subtotal_cents - item.subtotal_cents + repriced.subtotal_cents;
   const total = subtotal + order.delivery_fee_cents - (order.discount_cents || 0);
   if (total <= 0) return json({ error: 'Com essa quantidade o desconto fica maior que o pedido. Ajuste o desconto antes.' }, 400);
