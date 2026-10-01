@@ -433,7 +433,7 @@ function pontoxScrollVideoHeroHtml() {
 
   return `<section class="pontox-scroll-hero" aria-label="Montagem do hambúrguer">
     <div class="pontox-scroll-hero-sticky">
-      <video class="pontox-scroll-video" data-src="assets/burger-assembly.mp4" muted playsinline preload="none"></video>
+      <video class="pontox-scroll-video" src="assets/burger-assembly.mp4#t=0.001" poster="assets/burger-assembly-poster.jpg" muted playsinline preload="auto"></video>
       <div class="pontox-scroll-hero-copy">
         ${special ? `<div class="pontox-scroll-hero-product">
           <span class="pontox-scroll-hero-badge">★ Especial da casa</span>
@@ -614,23 +614,17 @@ setInterval(() => {
   document.querySelectorAll('.pontox-hero-dot').forEach((dot, i) => dot.classList.toggle('on', i === next));
 }, 5000);
 
-// Vídeo-scroll do topo: carrega só quando chega perto (economiza dados de quem nem rola
-// até lá) e avança junto com o scroll (sem tocar/som). Sempre reconsulta o DOM a cada passo
-// (como o autoplay do carrossel acima), então sobrevive a re-renderizações do #menu-body.
-let scrollVideoObserver = null;
+// Vídeo-scroll do topo: carrega assim que o site abre (o 1º quadro e a imagem de capa
+// aparecem na hora, nada fica preto) e avança junto com o scroll (sem tocar/som). Sempre
+// reconsulta o DOM a cada passo, então sobrevive a re-renderizações do #menu-body.
 
 function armScrollVideo() {
   const video = document.querySelector('.pontox-scroll-video');
   if (!video || video.dataset.armed) return;
   video.dataset.armed = '1';
-  scrollVideoObserver?.disconnect();
-  scrollVideoObserver = new IntersectionObserver(entries => {
-    if (!entries.some(e => e.isIntersecting)) return;
-    video.src = video.dataset.src;
-    video.load();
-    scrollVideoObserver.disconnect();
-  }, { rootMargin: '600px 0px' });
-  scrollVideoObserver.observe(video);
+  // Já mostra o quadro certo assim que o vídeo carrega (sem esperar a primeira rolagem).
+  video.addEventListener('loadeddata', updateScrollVideo, { once: true });
+  if (video.readyState >= 2) updateScrollVideo();
 }
 
 let heroScrollTicking = false;
@@ -1236,6 +1230,9 @@ function searchProducts(query) {
 // Nunca fecha o pedido sozinho: sempre passa pela conferência e pelo carrinho.
 
 const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+// Pedido por voz desativado por enquanto: true volta a mostrar o 🎤 na busca.
+const VOICE_ORDER_ENABLED = false;
+const voiceOrderOn = () => VOICE_ORDER_ENABLED && Boolean(SpeechRec);
 
 const VOICE_UNITS = {
   um: 1, uma: 1, hum: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9,
@@ -2279,10 +2276,10 @@ function renderMenu() {
       <div id="install-slot">${installBannerHtml()}</div>
       <div id="video-slot"></div>
       ${state.products.length ? `
-        <div class="search-bar ${SpeechRec ? 'has-mic' : ''}">
+        <div class="search-bar ${voiceOrderOn() ? 'has-mic' : ''}">
           <input id="search" type="search" placeholder="${storeCopy('🔎 Buscar lanche, combo ou bebida', '🔎 Buscar produto (ex.: heineken, carvão, gelo)')}" autocomplete="off" value="${escapeHtml(state.search)}" />
           <button id="clear-search" aria-label="Limpar busca" ${state.search ? '' : 'hidden'}>✕</button>
-          ${SpeechRec ? '<button id="voice-order" class="mic-btn" aria-label="Pedir falando">🎤</button>' : ''}
+          ${voiceOrderOn() ? '<button id="voice-order" class="mic-btn" aria-label="Pedir falando">🎤</button>' : ''}
         </div>` : ''}
       <div id="menu-body"></div>
       ${siteFooterHtml()}
@@ -2309,6 +2306,7 @@ function renderMenu() {
   // Vídeo fica num slot próprio, acima da busca (a busca continua fora do menu-body
   // para não perder o foco do input a cada tecla digitada).
   document.getElementById('video-slot').innerHTML = state.products.length ? pontoxScrollVideoHeroHtml() : '';
+  armScrollVideo();
   document.getElementById('menu-body').innerHTML = menuBodyHtml();
   document.getElementById('cart-slot').innerHTML = cartBarHtml();
   armProductReveal();
