@@ -2818,7 +2818,7 @@ function openCart() {
 
   if (!entries.length) {
     closeSheet();
-    renderMenu();
+    refreshCartUi();
     return;
   }
 
@@ -2866,7 +2866,7 @@ function openCart() {
       state.noCheddar = {};
       saveJson(NO_CHEDDAR_KEY, state.noCheddar);
       closeSheet();
-      renderMenu();
+      refreshCartUi();
       toast('Carrinho limpo.');
     } else if (btn.dataset.editLine) {
       editLanche(btn.dataset.editLine);
