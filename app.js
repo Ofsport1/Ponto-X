@@ -2336,9 +2336,11 @@ function openSheet(html) {
 // Redesenha a janela aberta sem pular para o topo (ex.: tocar em "Adicionar" num adicional lá embaixo).
 function keepSheetScroll(render) {
   const top = document.querySelector('#sheet .sheet')?.scrollTop || 0;
+  const strips = [...document.querySelectorAll('#sheet .leve-strip')].map(el => el.scrollLeft);
   render();
   const sheet = document.querySelector('#sheet .sheet');
   if (sheet) sheet.scrollTop = top;
+  document.querySelectorAll('#sheet .leve-strip').forEach((el, i) => { el.scrollLeft = strips[i] || 0; });
 }
 
 function closeSheet() {
@@ -3032,8 +3034,19 @@ function suggestionButtonHtml(p) {
     </button>`;
 }
 
+// Enquanto o carrinho continua aberto, as sugestões não são sorteadas de novo a cada toque
+// (senão a lista inteira troca e as fotos piscam): só sai o que acabou de entrar no carrinho.
+let cartSuggestCache = null;
+
 function leveJuntoHtml() {
-  const { items, title, ice } = forgottenSuggestions();
+  const reopening = Boolean(document.querySelector('#sheet #clear-cart'));
+
+  if (!reopening || !cartSuggestCache) cartSuggestCache = forgottenSuggestions();
+
+  const inCart = new Set(cartEntries().map(e => e.product.id));
+  const items = cartSuggestCache.items.filter(p => !inCart.has(p.id) && p.available !== false);
+  const ice = cartSuggestCache.ice && !inCart.has(cartSuggestCache.ice.id) && !state.iceDismissed ? cartSuggestCache.ice : null;
+  const { title } = cartSuggestCache;
 
   if (!items.length && !ice) return '';
 
