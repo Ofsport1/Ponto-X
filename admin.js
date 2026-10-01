@@ -4761,7 +4761,7 @@ function profileFormHtml() {
           ['weight', '⚖️ Venda por kg'],
           ['category_min_orders', '📦 Mínimo por categoria'],
           ['smart_suggestions', '💡 Sugestões inteligentes'],
-        ].map(([key, label]) => `<label class="check"><input type="checkbox" name="feature_${key}" ${(p.features?.[key] !== false) ? 'checked' : ''} /> ${label}</label>`).join('')}
+        ].filter(([key]) => !(isBurgerStore() && ['chill', 'bulk', 'weight'].includes(key))).map(([key, label]) => `<label class="check"><input type="checkbox" name="feature_${key}" ${(p.features?.[key] !== false) ? 'checked' : ''} /> ${label}</label>`).join('')}
       </details>
       <button class="btn primary" type="submit">Salvar rodapé</button>
     </form>`;
@@ -4783,7 +4783,7 @@ async function saveProfile(form) {
       hidden_categories: hiddenCategories,
       alcohol_notice: field('alcohol_notice').checked,
       features: ['chill', 'bulk', 'weight', 'category_min_orders', 'smart_suggestions']
-        .reduce((features, key) => ({ ...features, [key]: field(`feature_${key}`).checked }), {}),
+        .reduce((features, key) => ({ ...features, [key]: field(`feature_${key}`)?.checked === true }), {}),
     },
   }, 'Rodapé salvo!');
 
