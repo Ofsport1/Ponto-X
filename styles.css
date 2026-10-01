@@ -795,3 +795,6 @@ html, body, button, a, input, select, textarea, label { touch-action: manipulati
 .cart-addons span { display: block; margin-top: 1px; }
 .cart-addons .cart-addons-title { font-size: 9.5px; font-weight: 700; letter-spacing: .06em; opacity: .8; }
 .cart-addons b { font-weight: 600; color: var(--gold); white-space: nowrap; }
+.cart-thumb-wrap { position: relative; flex-shrink: 0; align-self: flex-start; display: inline-flex; }
+.cart-thumb-wrap .cart-thumb { align-self: auto; }
+.cart-edit { position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; padding: 0; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--line); background: var(--card); font-size: 11px; line-height: 1; box-shadow: 0 1px 4px rgba(0,0,0,.4); cursor: pointer; }

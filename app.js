@@ -972,6 +972,19 @@ function openLanche(productId) {
   renderLancheSheet();
 }
 
+// Lápis do carrinho: reabre o lanche com a quantidade e os adicionais daquela linha.
+function editLanche(key) {
+  const entry = cartEntries().find(e => e.key === key);
+  if (!entry) return;
+  state.lancheDraft = {
+    productId: entry.product.id,
+    qty: entry.qty,
+    addons: Object.fromEntries((entry.addons || []).map(a => [a.product.id, a.qty])),
+    editKey: key,
+  };
+  renderLancheSheet();
+}
+
 function renderLancheSheet() {
   const draft = state.lancheDraft;
   const product = productById(draft?.productId);
@@ -1005,9 +1018,9 @@ function renderLancheSheet() {
     </div>
     <div class="lanche-confirm">
       <span class="qty"><button data-ldec aria-label="Diminuir">−</button><span>${draft.qty}</span><button data-linc aria-label="Aumentar">+</button></span>
-      <button class="btn primary" data-ladd style="flex:1">Adicionar · ${money(unit * draft.qty)}</button>
+      <button class="btn primary" data-ladd style="flex:1">${draft.editKey ? 'Salvar' : 'Adicionar'} · ${money(unit * draft.qty)}</button>
     </div>
-    ${inCart ? `<p class="muted" style="margin:8px 0 0;font-size:13px;text-align:center">Você já tem ${inCart} no carrinho.</p>` : ''}
+    ${inCart && !draft.editKey ? `<p class="muted" style="margin:8px 0 0;font-size:13px;text-align:center">Você já tem ${inCart} no carrinho.</p>` : ''}
   `);
 
   sheet.addEventListener('click', event => {
@@ -1025,6 +1038,20 @@ function renderLancheSheet() {
       draft.qty = Math.max(draft.qty - 1, 1);
     } else if ('ladd' in btn.dataset) {
       const key = cartKey(product.id, null, draft.addons);
+      if (draft.editKey) {
+        // Troca a linha editada pela nova combinação no mesmo lugar (se já existir igual, soma nela).
+        if (key !== draft.editKey && state.cart[key]) {
+          state.cart[key] = Math.min(state.cart[key] + draft.qty, 99);
+          delete state.cart[draft.editKey];
+        } else {
+          state.cart = Object.fromEntries(Object.entries(state.cart).map(([k, q]) => (k === draft.editKey ? [key, draft.qty] : [k, q])));
+        }
+        saveJson(CART_KEY, state.cart);
+        state.lancheDraft = null;
+        refreshCartUi();
+        openCart();
+        return;
+      }
       setQty(key, (state.cart[key] || 0) + draft.qty);
       state.lancheDraft = null;
       closeSheet();
@@ -2799,7 +2826,9 @@ function openCart() {
     <div class="sheet-head"><h2>Seu carrinho</h2><button type="button" class="clear-cart" id="clear-cart">Limpar carrinho</button><button data-close aria-label="Fechar">✕</button></div>
     ${entries.map(({ key, name, price, qty, line, bulk, chill, noCheddar, total, product, variant, addons }) => `
       <div class="cart-line">
-        ${cartPhotoHtml(product, variant)}
+        ${lancheWithAddons(product)
+          ? `<span class="cart-thumb-wrap">${cartPhotoHtml(product, variant)}<button type="button" class="cart-edit" data-edit-line="${key}" aria-label="Editar adicionais">✏️</button></span>`
+          : cartPhotoHtml(product, variant)}
         <span class="name">${escapeHtml(name)}${addons?.length ? `<span class="cart-addons"><span class="cart-addons-title">Turbinado:</span>${addons.map(a => `<span>(${a.qty}) ${escapeHtml(a.product.name)} <b>(+${money(a.product.price_cents * a.qty)})</b></span>`).join('')}</span>` : '<br>'}<span class="muted">${money(price)}${qty > 1 || chill?.on ? ` · ${money(total)}` : ''}${storeFeatures().weight !== false && product?.sold_by_weight ? ' · ⚖️ estimado' : ''}</span>
           ${line.packs ? `<br><span class="bulk-hint">🍻 ${line.packs} engradado${line.packs > 1 ? 's' : ''} · economia de ${money(line.saved)}</span>` : bulk ? `<br><span class="bulk-hint">faltam ${bulk.qty - (qty % bulk.qty)} pro preço de engradado</span>` : ''}
           ${noCheddar !== null ? `<br>${noCheddarToggleHtml(key, noCheddar)}` : ''}
@@ -2839,6 +2868,8 @@ function openCart() {
       closeSheet();
       renderMenu();
       toast('Carrinho limpo.');
+    } else if (btn.dataset.editLine) {
+      editLanche(btn.dataset.editLine);
     } else if (btn.dataset.nocheddar) {
       toggleNoCheddar(btn.dataset.nocheddar);
       keepSheetScroll(openCart);
