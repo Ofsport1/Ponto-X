@@ -16,7 +16,9 @@ novos(name, fee_cents, sort_order) as (
     ('Lambicada',          500,  6),
     ('Camorim Grande',     800,  7),
     ('Camorim Pequeno',   1200,  8),
-    ('Praia do Machado',   500,  9)
+    ('Praia do Machado',   500,  9),
+    ('Verolme',            500, 10),
+    ('BNH',                500, 11)
 )
 insert into delivery_zones (store_id, name, fee_cents, active, sort_order)
 select loja.id, n.name, n.fee_cents, true, n.sort_order
