@@ -5444,9 +5444,19 @@ function printDocument(bodyHtml, settings = printSettings()) {
   iframe.contentDocument.close();
 
   setTimeout(() => {
-    iframe.contentWindow.focus();
-    iframe.contentWindow.print();
-    setTimeout(() => iframe.remove(), 60000);
+    const fallback = () => {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+      setTimeout(() => iframe.remove(), 60000);
+    };
+
+    // App do Windows (Ponto X - Delivery): imprime direto na impressora padrão, sem janela.
+    // Se o app não conseguir (ou for o navegador), cai na janela de impressão normal para o cupom nunca se perder.
+    if (typeof window.pdvDesktop?.printHtml === 'function') {
+      window.pdvDesktop.printHtml('<!doctype html>' + iframe.contentDocument.documentElement.outerHTML)
+        .then(result => { if (result?.ok) iframe.remove(); else fallback(); })
+        .catch(fallback);
+    } else fallback();
   }, 250);
 }
 

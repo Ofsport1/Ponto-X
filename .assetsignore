@@ -19,3 +19,4 @@ publicar.cmd
 .gitattributes
 painel-impressora.cmd
 senha-suporte.cmd
+pdv-desktop/**

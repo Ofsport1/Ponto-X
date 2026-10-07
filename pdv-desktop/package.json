@@ -1,0 +1,35 @@
+{
+  "name": "pontox-desktop",
+  "version": "1.0.0",
+  "description": "Ponto X - Delivery: aplicativo para Windows",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis"
+  },
+  "build": {
+    "appId": "br.com.ultrion.pontox",
+    "productName": "Ponto X - Delivery",
+    "afterPack": "after-pack.js",
+    "directories": { "output": "dist" },
+    "files": ["main.js", "telas.js", "preload.js", "offline.html", "package.json"],
+    "extraResources": [{ "from": "build/icon.png", "to": "icon.png" }],
+    "win": { "target": "nsis", "icon": "build/icon.ico", "signAndEditExecutable": false },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "shortcutName": "Ponto X - Delivery",
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true
+    }
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0",
+    "rcedit": "^5.0.2"
+  }
+}
