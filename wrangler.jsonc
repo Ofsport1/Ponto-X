@@ -48,9 +48,11 @@
 	"vars": {
 		// Endereço oficial: links dos pedidos no WhatsApp.
 		"SITE_URL": "https://pontox.sistemaultrion.com.br",
-		"SUPABASE_URL": "https://qknjjsdblasejgpbowjs.supabase.co"
+		"SUPABASE_URL": "https://qknjjsdblasejgpbowjs.supabase.co",
+		// WhatsApp automático: serviço no PC da loja, atrás do Cloudflare Tunnel (docs/whatsapp-pc-loja.md).
+		// Só funciona depois dos secrets WA_SERVICE_TOKEN e WA_SERVICE_TENANT_SECRET (wrangler secret put).
+		"WA_SERVICE_URL": "https://wa-pontox.sistemaultrion.com.br"
 		// Sem VAPID_PUBLIC_KEY de propósito: chave própria da Ponto X, gerada na Etapa 3.
-		// Sem WA_SERVICE_URL de propósito: sem WhatsApp automático por enquanto (só link manual wa.me).
 	},
 	"secrets": {
 		"required": [
