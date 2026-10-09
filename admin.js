@@ -747,6 +747,7 @@ app.addEventListener('change', event => {
   } else if (event.target.id === 'orders-date') {
     state.ordersDate = event.target.value || todaySaoPaulo();
     state.knownOrderIds = null;
+    state.orderStatusSeen = null; // outro dia: não confunde pedido antigo com pedido recém-aceito
     loadOrders();
   } else if (event.target.closest('#new-order-form') && ['source', 'delivery_type', 'payment_method'].includes(event.target.name)) {
     syncNewOrderForm(event.target.name);
@@ -1279,9 +1280,12 @@ async function loadOrders() {
     if (fresh.length) {
       beep();
       toast('🔔 Pedido novo chegou!');
-      // Impressão automática: todo pedido novo (do cliente e do caixa), só no computador da impressora.
-      if (autoPrintHere()) printOrders(fresh);
     }
+
+    // Impressão automática (pedido do dono, 2026-10-09): ao ACEITAR o pedido (aqui, no celular ou já nascendo aceito)
+    // saem 2 vias no computador da impressora: COZINHA e ENTREGADOR (retirada/mesa: BALCÃO). Cada pedido imprime uma vez só.
+    if (autoPrintHere()) printNewlyAccepted(data.orders);
+    state.orderStatusSeen = new Map(data.orders.map(o => [o.id, o.status]));
 
     state.knownOrderIds = ids;
 
@@ -5292,7 +5296,7 @@ async function setPrintStation(body, message) {
 }
 
 function claimPrintStation(onlyIfEmpty = false) {
-  return setPrintStation({ device_id: deviceId(), label: deviceLabel(), only_if_empty: onlyIfEmpty }, '🖨️ Pronto! Este computador agora imprime sozinho todo pedido novo.');
+  return setPrintStation({ device_id: deviceId(), label: deviceLabel(), only_if_empty: onlyIfEmpty }, '🖨️ Pronto! Ao aceitar cada pedido, este computador imprime sozinho a via da cozinha e a do entregador.');
 }
 
 // Computador (não celular/tablet) — só ele assume a impressão sozinho.
@@ -5348,7 +5352,7 @@ function storePrinterHtml() {
         <strong>🖨️ Impressão automática</strong>
         <p class="muted" style="margin:4px 0 0;font-size:14px">${p.station_id
           ? (autoPrintHere()
-            ? '✅ <strong>Este computador</strong> é o da impressora: todo pedido novo (do cliente e do caixa) sai impresso sozinho aqui, com o painel aberto.'
+            ? '✅ <strong>Este computador</strong> é o da impressora: ao aceitar um pedido (aqui ou no celular), saem sozinhas aqui 2 vias, <b>COZINHA</b> e <b>ENTREGADOR</b> (retirada/mesa: BALCÃO), com o painel aberto.'
             : `Quem imprime sozinho é outro aparelho (${escapeHtml(p.station_label || 'computador da loja')}${p.station_set_at ? `, desde ${dateTimeOf(p.station_set_at)}` : ''}). Para trocar, abra esta tela no computador certo e toque em "🖨️ Imprimir os pedidos por este computador".`)
           : 'Desligada. No computador da impressora, toque em "🖨️ Imprimir os pedidos por este computador" abaixo.'}</p>
         <div class="row" style="margin-top:6px">
@@ -5370,7 +5374,7 @@ function storePrinterHtml() {
         1. Deixe a impressora térmica como <strong>impressora padrão</strong> do Windows.<br>
         2. Clique com o botão direito no atalho do Google Chrome → <strong>Propriedades</strong>.<br>
         3. No campo <strong>Destino</strong>, depois de <code>chrome.exe"</code>, acrescente um espaço e <code>--kiosk-printing</code> → OK.<br>
-        4. Feche todas as janelas do Chrome e abra pelo atalho. Pronto: o painel imprime direto na térmica, e com "Imprimir sozinho" ligado, cada pedido novo sai impresso.
+        4. Feche todas as janelas do Chrome e abra pelo atalho. Pronto: o painel imprime direto na térmica, e com "Imprimir sozinho" ligado, cada pedido aceito sai em 2 vias (cozinha e entregador).
       </p>
     </div>`;
 }
@@ -5423,6 +5427,65 @@ function receiptHtml(order, p) {
       ${order.notes ? `${line}<div><b>Obs:</b> ${escapeHtml(order.notes)}</div>` : ''}
       ${p.footer ? `${line}<div class="center">${escapeHtml(p.footer)}</div>` : ''}
     </div>`;
+}
+
+// Via da COZINHA: só o que preparar (itens grandes, sem preço), tipo do pedido e observação.
+function kitchenReceiptHtml(order, p) {
+  const line = '<div class="sep"></div>';
+  const kind = order.delivery_type === 'pickup' ? 'RETIRADA' : order.delivery_type === 'dinein' ? `MESA ${escapeHtml(order.table_label || '')}` : 'ENTREGA';
+
+  return `
+    <div class="receipt">
+      <div class="center big">*** COZINHA ***</div>
+      <div class="center">${dateOf(order.created_at)} ${timeOf(order.created_at)}</div>
+      ${line}
+      <div class="center order-no">#${escapeHtml(order.order_number)}</div>
+      <div class="center huge">${kind}</div>
+      <div class="center">${escapeHtml(order.customer_name || '')}</div>
+      ${line}
+      ${order.order_items.map(i => `<div class="huge">${i.quantity}x ${escapeHtml(i.product_name)}${i.variant_name ? ` — ${escapeHtml(i.variant_name)}` : ''}</div>`).join('')}
+      ${order.notes ? `${line}<div class="box"><div class="label">OBSERVAÇÃO</div><div class="big">${escapeHtml(order.notes)}</div></div>` : ''}
+    </div>`;
+}
+
+// Via do ENTREGADOR (entrega) ou do BALCÃO (retirada/mesa): a notinha completa, com o nome da via em cima.
+function counterReceiptHtml(order, p) {
+  const title = order.delivery_type === 'delivery' ? '*** ENTREGADOR ***' : '*** BALCÃO ***';
+  return receiptHtml(order, p).replace('<div class="receipt">', `<div class="receipt"><div class="center big">${title}</div>`);
+}
+
+const PRINTED_KEY = 'pontox-auto-printed';
+const ACCEPTED_STATUSES = ['accepted', 'preparing', 'out_for_delivery'];
+
+function printedIds() {
+  try { return JSON.parse(localStorage.getItem(PRINTED_KEY) || '{}'); } catch { return {}; }
+}
+
+function markPrinted(ids) {
+  try {
+    const all = { ...printedIds() };
+    const now = Date.now();
+    ids.forEach(id => { all[id] = now; });
+    // Guarda só os últimos 2 dias (o bastante para não reimprimir ao recarregar a página).
+    const kept = Object.fromEntries(Object.entries(all).filter(([, at]) => now - at < 2 * 86400000));
+    localStorage.setItem(PRINTED_KEY, JSON.stringify(kept));
+  } catch { /* sem localStorage: segue */ }
+}
+
+// Pedido que acabou de ficar aceito: estava "recebido" na última conferência, ou chegou agora já aceito.
+// A primeira carga da tela não imprime nada (só anota), e pedido de outro dia ou com mais de 6 h também não.
+function printNewlyAccepted(orders) {
+  const seen = state.orderStatusSeen;
+  if (!seen || state.ordersDate !== todaySaoPaulo()) return;
+  const done = printedIds();
+  const fresh = orders.filter(o => ACCEPTED_STATUSES.includes(o.status)
+    && (!seen.has(o.id) || seen.get(o.id) === 'received')
+    && !done[o.id]
+    && Date.now() - Date.parse(o.created_at) < 6 * 3600000);
+  if (!fresh.length) return;
+  markPrinted(fresh.map(o => o.id));
+  const settings = printSettings();
+  printDocument(fresh.map(o => kitchenReceiptHtml(o, settings) + counterReceiptHtml(o, settings)).join(''), settings);
 }
 
 // Imprime por um iframe escondido, com o tamanho de papel configurado.
