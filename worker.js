@@ -3313,9 +3313,12 @@ async function handlePhotoProxy(request, env, ctx, path) {
   if (hit) return hit;
 
   const origin = await fetch(`${env.SUPABASE_URL}/storage/v1/object/public/${PRODUCT_BUCKET}/${path}`);
-  const type = origin.headers.get('Content-Type') || '';
+  // Fotos antigas foram salvas como application/octet-stream: o tipo vem da extensão.
+  const byExtension = { webp: 'image/webp', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png' }[path.split('.').pop().toLowerCase()];
+  const originType = origin.headers.get('Content-Type') || '';
+  const type = originType.startsWith('image/') ? originType : byExtension || '';
 
-  if (!origin.ok || !type.startsWith('image/')) return new Response('Not found', { status: 404, headers: { 'Cache-Control': 'no-store' } });
+  if (!origin.ok || !type) return new Response('Not found', { status: 404, headers: { 'Cache-Control': 'no-store' } });
 
   const response = new Response(origin.body, {
     status: 200,
