@@ -1,0 +1,43 @@
+# Publica o site (wrangler deploy) a partir do GitHub, sem precisar do PC.
+# Só roda num push da branch de produção cujo último commit tenha "[publicar]" na mensagem.
+# Precisa dos secrets do repositório CLOUDFLARE_API_TOKEN e CLOUDFLARE_ACCOUNT_ID (nunca no código).
+name: Publicar
+
+on:
+  push:
+    branches: ['main']
+
+concurrency:
+  group: publicar
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: contains(github.event.head_commit.message, '[publicar]')
+    runs-on: ubuntu-latest
+    env:
+      BRANCH: main
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Confere que o commit está na branch de produção
+        run: |
+          git fetch --no-tags origin "$BRANCH"
+          git merge-base --is-ancestor "$GITHUB_SHA" "origin/$BRANCH" || { echo "Commit fora da branch $BRANCH; não publico."; exit 1; }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Publica na Cloudflare
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "Falta o secret CLOUDFLARE_API_TOKEN no GitHub."; exit 1; }
+          npx --yes wrangler@4.147.0 deploy
