@@ -93,6 +93,8 @@ async function connect(storeId) {
     browser: Browsers.ubuntu('Delivery WhatsApp'),
     markOnlineOnConnect: false,
     syncFullHistory: false,
+    // Prévia do link (cartão com foto e título do site) nas mensagens com endereço; usa o pacote link-preview-js.
+    generateHighQualityLinkPreview: true,
   });
 
   wa.sock = sock;
