@@ -3295,7 +3295,7 @@ function storageObjectPathFromPublicUrl(env, url) {
 
 // Fotos do cardápio passam pelo cache da Cloudflare: o Supabase só entrega cada foto uma vez
 // (cada upload tem nome novo, então o cache nunca fica velho). Evita estourar o Cached Egress.
-const PHOTO_PATH_RE = /^[0-9a-f-]{36}\/[A-Za-z0-9._-]{1,120}$/i;
+const PHOTO_PATH_RE = /^([0-9a-f-]{36}\/)?[A-Za-z0-9._-]{1,120}$/i;
 
 function cachedPhotoUrl(env, url) {
   const path = storageObjectPathFromPublicUrl(env, url);
