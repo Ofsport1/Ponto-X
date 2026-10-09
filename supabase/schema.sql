@@ -1010,3 +1010,9 @@ create table if not exists public.wa_auto_replies (
 );
 create index if not exists wa_auto_replies_phone_idx on public.wa_auto_replies (store_id, phone, created_at desc);
 alter table public.wa_auto_replies enable row level security;
+
+-- 2026-10-08: pedido na mesa (cliente na lanchonete). Só o painel lança; o número da mesa é obrigatório.
+-- delivery_type passa a aceitar 'dinein' e o número da mesa fica em table_label.
+alter table orders add column if not exists table_label text;
+alter table orders drop constraint if exists orders_delivery_type_check;
+alter table orders add constraint orders_delivery_type_check check (delivery_type in ('delivery','pickup','dinein'));

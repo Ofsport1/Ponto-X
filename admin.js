@@ -1036,9 +1036,11 @@ function sameLineOrders(order) {
 
 // Topo do cartão do pedido: número, cliente e endereço juntos, em destaque.
 function orderIdentityHtml(order) {
-  const { street, guessed } = order.delivery_type === 'pickup' ? {} : orderStreet(order);
+  const { street, guessed } = order.delivery_type !== 'delivery' ? {} : orderStreet(order);
   const where = order.delivery_type === 'pickup'
     ? '<span class="oi-addr">🏪 Retirada na loja</span>'
+    : order.delivery_type === 'dinein'
+    ? `<span class="oi-addr">🍽️ Mesa ${escapeHtml(order.table_label || '?')}</span>`
     : `<span class="oi-addr">📍 ${order.address ? escapeHtml(order.address) : 'Endereço não informado — confirme com o cliente'}</span>
        ${order.delivery_zone || street ? `<span class="oi-zone">${[order.delivery_zone, street ? `${street}${guessed ? ' (palpite)' : ''}` : ''].filter(Boolean).map(escapeHtml).join(' · ')}</span>` : ''}`;
 
@@ -1054,7 +1056,8 @@ function orderIdentityHtml(order) {
 
 function orderHtml(order) {
   const next = NEXT_STATUS[order.status];
-  const nextLabel = next === 'out_for_delivery' && order.delivery_type === 'pickup' ? 'Pronto p/ retirada' : STATUS_LABELS[next];
+  const nextLabel = next === 'out_for_delivery' && order.delivery_type === 'pickup' ? 'Pronto p/ retirada'
+    : next === 'out_for_delivery' && order.delivery_type === 'dinein' ? 'Pronto p/ servir' : STATUS_LABELS[next];
   const phoneDigits = String(order.customer_phone || '').replace(/\D/g, '');
 
   return `
@@ -1064,7 +1067,7 @@ function orderHtml(order) {
           ${orderIdentityHtml(order)}
           <span class="muted" style="font-size:12px"><span title="Código que o cliente e o entregador veem">código do cliente: <strong>${escapeHtml(order.public_code || '—')}</strong></span></span><br>
           ${order.customer_id ? `<button class="btn small" data-customer="${order.customer_id}" style="margin:4px 0">👤 Ver perfil</button>` : ''}
-          <span class="muted">${timeOf(order.created_at)} · ${SOURCE_LABELS[order.source] || ''} · ${order.delivery_type === 'pickup' ? 'Retirada' : 'Entrega'}</span>
+          <span class="muted">${timeOf(order.created_at)} · ${SOURCE_LABELS[order.source] || ''} · ${typeLabel(order)}</span>
         </div>
         <div style="text-align:right">
           <strong class="status-${order.status}">${STATUS_LABELS[order.status]}</strong><br>
@@ -1119,9 +1122,16 @@ function elapsedText(ms) {
   return h ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
 }
 
-// Prazo prometido do pedido (Loja > Geral): entrega ou retirada, contado da hora do pedido.
+// Prazo prometido do pedido (Loja > Geral): entrega ou retirada/mesa, contado da hora do pedido.
 function deadlineMinutes(order) {
-  return (order.delivery_type === 'pickup' ? state.store.pickup_minutes : state.store.delivery_minutes) || 45;
+  return (order.delivery_type === 'delivery' ? state.store.delivery_minutes : state.store.pickup_minutes) || 45;
+}
+
+// Tipo do pedido para listas e cartões (mesa mostra o número quando vier).
+function typeLabel(order) {
+  if (order.delivery_type === 'pickup') return 'Retirada';
+  if (order.delivery_type === 'dinein') return order.table_label ? `Mesa ${escapeHtml(order.table_label)}` : 'Mesa';
+  return 'Entrega';
 }
 
 function orderDeadline(order) {
@@ -2321,9 +2331,11 @@ function newOrderFormHtml() {
       <div class="field"><label>Entrega</label>
         <div class="choices">
           ${radio('delivery_type', 'pickup', 'Retirada / balcão', true)}
+          ${radio('delivery_type', 'dinein', '🍽️ Mesa', false)}
           ${radio('delivery_type', 'delivery', 'Entrega', false)}
         </div>
       </div>
+      <div class="field" id="no-table" hidden><label>Número da mesa</label><input name="table_label" maxlength="20" inputmode="text" placeholder="Ex.: 5" /></div>
       ${activeZones().length ? `
         <div class="field" id="no-zone" hidden><label>Bairro</label>
           <select name="delivery_zone_id">
@@ -2552,6 +2564,7 @@ function syncNewOrderForm(changed) {
   document.getElementById('no-phone-hint').textContent = balcao
     ? '(opcional no balcão; com ele o pedido vai pro perfil do cliente)'
     : '(obrigatório)';
+  document.getElementById('no-table').hidden = form.delivery_type.value !== 'dinein';
   document.getElementById('no-address').hidden = form.delivery_type.value !== 'delivery';
   const zoneField = document.getElementById('no-zone');
   if (zoneField) zoneField.hidden = form.delivery_type.value !== 'delivery';
@@ -2571,6 +2584,8 @@ async function submitNewOrder(form) {
 
   if (discount === null) return toast('Valor do desconto inválido.', true);
 
+  if (form.delivery_type.value === 'dinein' && !form.table_label.value.trim()) return toast('Informe o número da mesa.', true);
+
   const button = form.querySelector('[type=submit]');
   button.disabled = true;
   button.textContent = 'Lançando…';
@@ -2583,6 +2598,7 @@ async function submitNewOrder(form) {
         customer_name: form.customer_name.value,
         customer_phone: form.customer_phone.value,
         delivery_type: form.delivery_type.value,
+        table_label: form.delivery_type.value === 'dinein' ? form.table_label.value : '',
         address: form.address.value,
         delivery_zone_id: form.delivery_zone_id?.value || null,
         payment_method: form.payment_method.value,
@@ -2895,7 +2911,7 @@ function historyListHtml() {
               <td>${dateTimeOf(o.created_at)}</td>
               <td>${dateTimeOf(o.closed_at)}</td>
               <td>${o.customer_id ? `<button class="link" data-customer="${o.customer_id}">${escapeHtml(o.customer_name)}</button>` : escapeHtml(o.customer_name)}</td>
-              <td>${SOURCE_LABELS[o.source] || escapeHtml(o.source)}<br><span class="muted">${o.delivery_type === 'pickup' ? 'Retirada' : 'Entrega'}</span></td>
+              <td>${SOURCE_LABELS[o.source] || escapeHtml(o.source)}<br><span class="muted">${typeLabel(o)}</span></td>
               <td class="status-${o.status}">${STATUS_LABELS[o.status]}${o.cancel_reason ? `<br><span class="muted">${escapeHtml(o.cancel_reason)}</span>` : ''}</td>
               <td>${paymentText(o)}<br>${paymentBadge(o)}</td>
               <td class="num"><strong>${money(o.total_cents)}</strong></td>
@@ -3622,7 +3638,7 @@ function customerDetailHtml() {
     ${orders.length ? orders.map(o => `
       <div class="card">
         <div class="order-head">
-          <div><strong>#${escapeHtml(o.order_number)}</strong> <span class="muted">· ${dateOf(o.created_at)} ${timeOf(o.created_at)} · ${o.delivery_type === 'pickup' ? 'Retirada' : 'Entrega'} · ${paymentText(o)}</span></div>
+          <div><strong>#${escapeHtml(o.order_number)}</strong> <span class="muted">· ${dateOf(o.created_at)} ${timeOf(o.created_at)} · ${typeLabel(o)} · ${paymentText(o)}</span></div>
           <strong class="status-${o.status}">${STATUS_LABELS[o.status]}</strong>
         </div>
         <ul class="order-items">
@@ -5381,7 +5397,8 @@ function receiptHtml(order, p) {
       <div class="center">${dateOf(order.created_at)} ${timeOf(order.created_at)}</div>
       ${line}
       <div class="center order-no">#${escapeHtml(order.order_number)}</div>
-      <div class="center">${order.delivery_type === 'pickup' ? 'RETIRADA NA LOJA' : 'ENTREGA'} · ${SOURCE_LABELS[order.source]?.replace(/^\S+\s/, '') || ''}</div>
+      <div class="center">${order.delivery_type === 'pickup' ? 'RETIRADA NA LOJA' : order.delivery_type === 'dinein' ? 'MESA' : 'ENTREGA'} · ${SOURCE_LABELS[order.source]?.replace(/^\S+\s/, '') || ''}</div>
+      ${order.delivery_type === 'dinein' ? `<div class="center huge">MESA ${escapeHtml(order.table_label || '')}</div>` : ''}
       ${line}
       <div class="box">
         <div class="label">CLIENTE</div>

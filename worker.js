@@ -560,7 +560,7 @@ const ORDER_STATUSES = ['received', 'accepted', 'preparing', 'out_for_delivery',
 
 // Prazo prometido do pedido (entrega ou retirada), contado a partir da hora do pedido.
 function orderDeadline(order, store) {
-  const minutes = order.delivery_type === 'pickup' ? store.pickup_minutes : store.delivery_minutes;
+  const minutes = order.delivery_type === 'delivery' ? store.delivery_minutes : store.pickup_minutes;
   return new Date(order.created_at).getTime() + (minutes || 45) * 60000;
 }
 // 'cartao' = pedidos antigos (antes de separar débito/crédito); o site e o painel não oferecem mais.
@@ -569,7 +569,8 @@ const PAYMENT_METHODS = ['dinheiro', 'debito', 'credito', 'pix', 'cartao', 'fiad
 const PAYMENT_LABELS = { dinheiro: 'Dinheiro', debito: 'Débito', credito: 'Crédito', pix: 'Pix', cartao: 'Cartão', fiado: 'Fiado' };
 // Formas para receber o pagamento de uma dívida do fiado.
 const CREDIT_PAY_METHODS = ['dinheiro', 'pix', 'debito', 'credito'];
-const DELIVERY_TYPES = ['delivery', 'pickup'];
+// 'dinein' = mesa (cliente na lanchonete): só o painel lança, exige o número da mesa; sem taxa nem entregador.
+const DELIVERY_TYPES = ['delivery', 'pickup', 'dinein'];
 const PAYMENT_STATUSES = ['pending', 'paid'];
 
 // Preço de uma quantidade com "engradado": cada bulkQty unidades saem por bulkPrice
@@ -863,7 +864,7 @@ async function handleAdminSuggestions(request, env) {
     tracking_since: events.length ? events.reduce((m, e) => (e.created_at < m ? e.created_at : m), events[0].created_at) : null,
   };
 
-  const deadlineOf = o => (o.delivery_type === 'pickup' ? store.pickup_minutes : store.delivery_minutes) || 45;
+  const deadlineOf = o => (o.delivery_type === 'delivery' ? store.delivery_minutes : store.pickup_minutes) || 45;
   const couponCandidates = problems.filter(o => {
     if (o.status === 'cancelled') return STORE_FAULT_REASONS.includes(o.cancel_reason);
     if (!o.closed_at) return false;
@@ -1896,6 +1897,12 @@ async function createOrder(env, body, { fromAdmin, ctx, request, session = null 
     return json({ error: 'Escolha a forma de entrega e de pagamento.' }, 400);
   }
 
+  const tableLabel = deliveryType === 'dinein' ? cleanText(body.table_label, 20) : '';
+
+  if (deliveryType === 'dinein' && !fromAdmin) return json({ error: 'Escolha entrega ou retirada.' }, 400);
+
+  if (deliveryType === 'dinein' && !tableLabel) return json({ error: 'Informe o número da mesa.' }, 400);
+
   const matchedCustomer = await findCustomerByPhone(env, store.id, normalizePhone(customerPhone));
   const vipAllowed = !matchedCustomer?.is_vip || fromAdmin || await vipPhoneVerified(request, env, customerPhone);
   const knownCustomer = vipAllowed ? matchedCustomer : null;
@@ -2076,6 +2083,7 @@ async function createOrder(env, body, { fromAdmin, ctx, request, session = null 
       customer_name: customerName,
       customer_phone: customerPhone,
       delivery_type: deliveryType,
+      table_label: tableLabel || null,
       address: deliveryType === 'delivery' ? address : null,
       delivery_zone: deliveryZone,
       delivery_street: deliveryStreet,
@@ -4026,7 +4034,7 @@ async function handleOrderHistory(request, env, session) {
   const payment = url.searchParams.get('payment');
   const store = await getStore(env);
 
-  let query = `orders?select=id,order_number,public_code,status,source,delivery_type,payment_method,payment_split,payment_status,paid_at,created_at,closed_at,customer_id,customer_name,customer_phone,total_cents,cancel_reason,cancelled_by`
+  let query = `orders?select=id,order_number,public_code,status,source,delivery_type,table_label,payment_method,payment_split,payment_status,paid_at,created_at,closed_at,customer_id,customer_name,customer_phone,total_cents,cancel_reason,cancelled_by`
     + `&store_id=eq.${store.id}`
     + `&created_at=gte.${encodeURIComponent(dayStart(from))}&created_at=lte.${encodeURIComponent(dayEnd(to))}`
     + `&order=created_at.desc&limit=1000`;
@@ -4638,6 +4646,9 @@ async function autoNotify(env, store, orderId, status, origin) {
 
   if (!order) return;
 
+  // Mesa: o cliente está na loja; não há aviso de "pronto para retirada" nem de saída para entrega.
+  if (order.delivery_type === 'dinein' && status === 'out_for_delivery') return;
+
   const key = waTemplateKey(order, status);
 
   if (waSettings(store).auto_send?.[key] === false) return;
@@ -4814,7 +4825,7 @@ async function notifyCustomerPush(env, orderId, status) {
 
   const [order] = await readJsonResponse(await supabaseFetch(env, `orders?select=id,public_code,customer_id,delivery_type&id=eq.${orderId}`), 'Pedido não encontrado.');
 
-  if (!order) return;
+  if (!order || (order.delivery_type === 'dinein' && status === 'out_for_delivery')) return;
 
   const key = status === 'out_for_delivery' && order.delivery_type === 'pickup' ? 'ready_pickup' : status;
   const text = CUSTOMER_PUSH_TEXTS[key];
@@ -5245,7 +5256,7 @@ async function sendPushTo(env, filter, payloadObj) {
 }
 
 async function notifyNewOrder(env, store, order, total, customerName, deliveryType, zone) {
-  const where = deliveryType === 'pickup' ? 'retirada' : (zone || 'entrega');
+  const where = deliveryType === 'pickup' ? 'retirada' : deliveryType === 'dinein' ? 'mesa' : (zone || 'entrega');
 
   await Promise.allSettled([
     notifyOwner(env, store.id, {

@@ -4300,13 +4300,13 @@ const STATUS_TOASTS = {
 function orderEtaHtml(order) {
   if (['delivered', 'cancelled'].includes(order.status)) return '';
 
-  const pickup = order.delivery_type === 'pickup';
+  const pickup = order.delivery_type !== 'delivery'; // retirada ou mesa: prazo de retirada
   const minutes = (pickup ? state.store?.pickup_minutes : state.store?.delivery_minutes) || (pickup ? 20 : 45);
   const deadline = new Date(order.created_at).getTime() + minutes * 60000;
   const time = new Date(deadline).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
 
   if (Date.now() <= deadline) {
-    return `<p style="margin:12px 0 0">⏰ Previsão: <strong>${pickup ? 'pronto para retirar' : 'chega'} até as ${time}</strong></p>`;
+    return `<p style="margin:12px 0 0">⏰ Previsão: <strong>${order.delivery_type === 'dinein' ? 'servido na mesa' : pickup ? 'pronto para retirar' : 'chega'} até as ${time}</strong></p>`;
   }
 
   return `<div class="late-note">⏳ Seu pedido está levando um pouquinho mais que o previsto, mas já estamos cuidando dele. Obrigado pela paciência! 💛</div>`;
@@ -4327,7 +4327,9 @@ async function showOrder(orderId, justPlaced = false) {
     lastSeenStatus = order.status;
     const steps = order.delivery_type === 'pickup'
       ? STATUS_STEPS.map(([k, label]) => [k, k === 'out_for_delivery' ? 'Pronto para retirada' : k === 'delivered' ? 'Retirado' : label])
-      : STATUS_STEPS;
+      : order.delivery_type === 'dinein'
+        ? STATUS_STEPS.map(([k, label]) => [k, k === 'out_for_delivery' ? 'Pronto, levando à sua mesa' : k === 'delivered' ? 'Servido' : label])
+        : STATUS_STEPS;
     const currentIndex = steps.findIndex(([key]) => key === order.status);
     const whatsapp = state.store?.whatsapp;
 
@@ -4349,7 +4351,7 @@ async function showOrder(orderId, justPlaced = false) {
           ${order.fee_waived === 'vip' ? '<div><span>Entrega</span><span>Grátis ⭐ VIP</span></div>' : ''}
           ${order.discount_cents ? `<div><span>${order.discount_reason === 'aniversario' ? '🎂 Presente de aniversário' : order.discount_reason === 'cupom' ? '🎁 Cupom' : 'Desconto'}</span><span>− ${money(order.discount_cents)}</span></div>` : ''}
           <div class="grand"><span>Total</span><span>${money(order.total_cents)}</span></div>
-          <div class="muted"><span>Pagamento na ${order.delivery_type === 'pickup' ? 'retirada' : 'entrega'}</span><span>${escapeHtml(paymentText(order))}</span></div>
+          <div class="muted"><span>Pagamento ${order.delivery_type === 'dinein' ? 'na loja' : order.delivery_type === 'pickup' ? 'na retirada' : 'na entrega'}</span><span>${escapeHtml(paymentText(order))}</span></div>
         </div>
       </div>
       ${whatsapp ? `<a class="btn block" style="display:block;text-align:center;text-decoration:none;color:inherit;margin-bottom:12px" target="_blank" rel="noopener" href="https://wa.me/55${escapeHtml(whatsapp)}?text=${encodeURIComponent(`Olá! Sobre o meu pedido #${order.public_code}`)}">💬 Falar com a loja no WhatsApp</a>` : ''}
