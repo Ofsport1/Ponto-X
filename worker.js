@@ -982,7 +982,7 @@ async function handleMenu(request, env) {
   for (const { product_variants: allVariants, promo_price_cents, promo_starts_at, promo_ends_at, promo_weekdays, ...product } of rows) {
     if (hidden.has(normalizeName(product.category))) continue;
     const variants = sortVariants(allVariants)
-      .map(({ id, name, price_cents, bulk_qty, bulk_price_cents, available, image_url }) => ({ id, name, price_cents, bulk_qty, bulk_price_cents, available, image_url }));
+      .map(({ id, name, price_cents, bulk_qty, bulk_price_cents, available, image_url }) => ({ id, name, price_cents, bulk_qty, bulk_price_cents, available, image_url: cachedPhotoUrl(env, image_url) }));
 
     // Produto com variações só está disponível se alguma opção estiver.
     const available = product.available && (!variants.length || variants.some(v => v.available));
@@ -991,7 +991,7 @@ async function handleMenu(request, env) {
 
     const promo = promoFor({ promo_price_cents, promo_starts_at, promo_ends_at, promo_weekdays, price_cents: product.price_cents, variants }, now);
 
-    products.push({ ...product, available, variants, promo });
+    products.push({ ...product, image_url: cachedPhotoUrl(env, product.image_url), available, variants, promo });
   }
 
   return json({
@@ -3291,6 +3291,40 @@ function storageObjectPathFromPublicUrl(env, url) {
   const prefix = `${env.SUPABASE_URL}/storage/v1/object/public/${PRODUCT_BUCKET}/`;
 
   return url && url.startsWith(prefix) ? url.slice(prefix.length) : null;
+}
+
+// Fotos do cardápio passam pelo cache da Cloudflare: o Supabase só entrega cada foto uma vez
+// (cada upload tem nome novo, então o cache nunca fica velho). Evita estourar o Cached Egress.
+const PHOTO_PATH_RE = /^[0-9a-f-]{36}\/[A-Za-z0-9._-]{1,120}$/i;
+
+function cachedPhotoUrl(env, url) {
+  const path = storageObjectPathFromPublicUrl(env, url);
+
+  return path && PHOTO_PATH_RE.test(path) ? `/api/img/${path}` : url;
+}
+
+async function handlePhotoProxy(request, env, ctx, path) {
+  if (!PHOTO_PATH_RE.test(path)) return new Response('Not found', { status: 404 });
+
+  const cache = caches.default;
+  const cacheKey = new Request(new URL(request.url).origin + `/api/img/${path}`, { method: 'GET' });
+  const hit = await cache.match(cacheKey);
+
+  if (hit) return hit;
+
+  const origin = await fetch(`${env.SUPABASE_URL}/storage/v1/object/public/${PRODUCT_BUCKET}/${path}`);
+  const type = origin.headers.get('Content-Type') || '';
+
+  if (!origin.ok || !type.startsWith('image/')) return new Response('Not found', { status: 404, headers: { 'Cache-Control': 'no-store' } });
+
+  const response = new Response(origin.body, {
+    status: 200,
+    headers: { 'Content-Type': type, 'Cache-Control': 'public, max-age=31536000, immutable' },
+  });
+
+  ctx.waitUntil(cache.put(cacheKey, response.clone()));
+
+  return response;
 }
 
 async function deleteStorageObject(env, path) {
@@ -6014,6 +6048,9 @@ export default {
       }
       if (path === '/api/menu' && method === 'GET') {
         return await handleMenu(request, env);
+      }
+      if (path.startsWith('/api/img/') && method === 'GET') {
+        return await handlePhotoProxy(request, env, ctx, path.slice('/api/img/'.length));
       }
 
       if (path === '/api/customer-lookup' && method === 'POST') {
