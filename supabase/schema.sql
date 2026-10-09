@@ -995,3 +995,18 @@ update products set is_addon = true where is_addon = false and name ilike '%adic
 -- 2026-10-01: "Retirar o cheddar". Produto que vem com cheddar por cima (batata dos combos,
 -- Batata Maluca): o cliente pode pedir sem, e o item sai no pedido como "(SEM CHEDDAR)".
 alter table products add column if not exists removable_cheddar boolean not null default false;
+
+-- Resposta automática do WhatsApp (2026-10-08): registra cada resposta enviada sozinha ao cliente
+-- (no máximo uma a cada X horas por cliente; X = stores.whatsapp_settings.auto_reply.interval_hours).
+create table if not exists public.wa_auto_replies (
+  id uuid primary key default gen_random_uuid(),
+  store_id uuid not null references public.stores(id) on delete cascade,
+  phone text not null,
+  replied_on date not null, -- só informativo (dia em São Paulo)
+  status text not null default 'sending' check (status in ('sending','sent','failed','skipped')),
+  error text,
+  created_at timestamptz not null default now(),
+  sent_at timestamptz
+);
+create index if not exists wa_auto_replies_phone_idx on public.wa_auto_replies (store_id, phone, created_at desc);
+alter table public.wa_auto_replies enable row level security;
