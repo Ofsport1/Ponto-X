@@ -267,8 +267,6 @@ async function autoReplyConfig(storeId) {
       intervalHours: Math.min(72, Math.max(1, Number(reply.interval_hours) || 5)),
       name: row.name || '',
       link: domain ? `https://${domain}` : (process.env.SITE_URL || ''),
-      // Opcional: imagem (https) enviada junto, com o texto como legenda.
-      image: /^https:\/\/\S+$/.test(String(reply.image_url || '')) ? String(reply.image_url) : '',
     }
     : null;
 
@@ -368,10 +366,7 @@ export async function handleInbound(storeId, message) {
 
     if (pending.cancelled) return void await finish({ status: 'skipped', error: 'A loja respondeu antes.' });
 
-    const replyText = fillAutoReply(config.text, config);
-    await wa.sock.sendMessage(contact.chat, config.image
-      ? { image: { url: config.image }, caption: replyText.slice(0, 1000) }
-      : { text: replyText });
+    await wa.sock.sendMessage(contact.chat, { text: fillAutoReply(config.text, config) });
     await finish({ status: 'sent', sent_at: new Date().toISOString() });
   } catch (err) {
     await finish({ status: 'failed', error: String(err.message || err).slice(0, 300) });
